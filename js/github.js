@@ -23,32 +23,28 @@ class GitHubAPI {
     return await response.json();
   }
 
-  // Lista os ficheiros de um caminho específico do repositório
   async getContents(owner, repo, path = '') {
     const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, { headers: this.headers });
     if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
     return await response.json();
   }
 
-  // Obtém um ficheiro específico
   async getFile(owner, repo, path) {
     const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, { headers: this.headers });
-    if (!response.ok) throw new Error('Erro ao carregar o ficheiro.');
+    if (!response.ok) throw new Error('Erro ao carregar o arquivo.');
     return await response.json();
   }
 
-  // Atualiza um ficheiro (guardar alterações)
   async updateFile(owner, repo, path, content, sha, message = 'Atualizado via Web CMS') {
-    // A API do GitHub exige conteúdo codificado em Base64 (com suporte a UTF-8)
     const encoder = new TextEncoder();
     const data = encoder.encode(content);
     const base64Content = btoa(String.fromCharCode(...data));
 
     const body = {
       message: message,
-      content: base64Content,
-      sha: sha
+      content: base64Content
     };
+    if (sha) body.sha = sha;
 
     const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, {
       method: 'PUT',
@@ -56,7 +52,24 @@ class GitHubAPI {
       body: JSON.stringify(body)
     });
 
-    if (!response.ok) throw new Error('Erro ao guardar alterações no ficheiro.');
+    if (!response.ok) throw new Error('Erro ao salvar o arquivo no GitHub.');
+    return await response.json();
+  }
+
+  // Deleta um arquivo
+  async deleteFile(owner, repo, path, sha, message = 'Excluído via Web CMS') {
+    const body = {
+      message: message,
+      sha: sha
+    };
+
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, {
+      method: 'DELETE',
+      headers: this.headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) throw new Error('Erro ao excluir o arquivo no GitHub.');
     return await response.json();
   }
 }
