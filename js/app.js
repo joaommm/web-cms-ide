@@ -2,7 +2,8 @@ let github = null;
 let currentUser = null;
 let currentRepo = null;
 let currentFile = null;
-let currentFolderPath = ''; // Controla a pasta em que o usuário está navegando
+let currentFolderPath = '';
+let monacoEditor = null;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -16,10 +17,23 @@ const repoList = document.getElementById('repo-list');
 const fileTree = document.getElementById('file-tree');
 const currentRepoTitle = document.getElementById('current-repo-title');
 const currentFileTitle = document.getElementById('current-file-title');
-const fileContent = document.getElementById('file-content');
 const saveFileBtn = document.getElementById('save-file-btn');
+const deleteFileBtn = document.getElementById('delete-file-btn');
+const newFileBtn = document.getElementById('new-file-btn');
 const editorStatus = document.getElementById('editor-status');
 const backToReposBtn = document.getElementById('back-to-repos-btn');
+const currentPathDisplay = document.getElementById('current-path-display');
+
+// Configura o Monaco Editor
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+  monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+    value: '// Selecione um arquivo para começar a editar...',
+    language: 'plaintext',
+    theme: 'vs-dark',
+    automaticLayout: true
+  });
+});
 
 connectBtn.addEventListener('click', async () => {
   const token = tokenInput.value.trim();
@@ -75,24 +89,22 @@ async function selectRepo(repoName) {
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
-  // Reseta para a raiz do repositório
   currentFolderPath = '';
   loadFiles(currentFolderPath);
 }
 
 async function loadFiles(path = '') {
+  currentPathDisplay.textContent = path ? `/${path}` : '/';
   fileTree.innerHTML = '<li>Carregando arquivos...</li>';
+
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
     fileTree.innerHTML = '';
 
-    // Se estivermos dentro de uma subpasta, cria a opção de voltar um nível
     if (path !== '') {
       const backLi = document.createElement('li');
       backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
-      backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', () => {
-        // Remove o último diretório do caminho
         const pathParts = currentFolderPath.split('/');
         pathParts.pop();
         currentFolderPath = pathParts.join('/');
@@ -105,16 +117,13 @@ async function loadFiles(path = '') {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
       li.textContent = `${icon} ${item.name}`;
-      li.style.cursor = 'pointer';
 
       if (item.type === 'dir') {
-        // Ao clicar numa pasta, atualiza o caminho atual e carrega seu conteúdo
         li.addEventListener('click', () => {
           currentFolderPath = item.path;
           loadFiles(currentFolderPath);
         });
       } else if (item.type === 'file') {
-        // Ao clicar num arquivo, abre o arquivo para edição
         li.addEventListener('click', () => openFile(item.path));
       }
 
@@ -125,14 +134,25 @@ async function loadFiles(path = '') {
   }
 }
 
+// Detecta a linguagem do Monaco Editor pela extensão
+function getLanguageFromFilename(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'js': return 'javascript';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    default: return 'plaintext';
+  }
+}
+
 async function openFile(filePath) {
   editorStatus.style.color = '#333';
   editorStatus.textContent = 'Carregando arquivo...';
 
   try {
     const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
-    
-    // Decodifica conteúdo Base64 (com suporte a UTF-8)
     const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
 
     currentFile = {
@@ -141,8 +161,15 @@ async function openFile(filePath) {
     };
 
     currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
-    fileContent.value = decodedContent;
+
+    if (monacoEditor) {
+      monacoEditor.setValue(decodedContent);
+      const language = getLanguageFromFilename(fileData.name);
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+    }
+
     saveFileBtn.style.display = 'inline-block';
+    deleteFileBtn.style.display = 'inline-block';
     editorStatus.textContent = '';
   } catch (error) {
     editorStatus.style.color = 'red';
@@ -151,13 +178,13 @@ async function openFile(filePath) {
 }
 
 saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile) return;
+  if (!currentFile || !monacoEditor) return;
 
   editorStatus.style.color = '#333';
   editorStatus.textContent = 'Guardando alterações...';
 
   try {
-    const newContent = fileContent.value;
+    const newContent = monacoEditor.getValue();
     const result = await github.updateFile(
       currentUser.login,
       currentRepo,
@@ -167,20 +194,84 @@ saveFileBtn.addEventListener('click', async () => {
     );
 
     currentFile.sha = result.content.sha;
-
     editorStatus.style.color = 'green';
-    editorStatus.textContent = 'Alterações salvas com sucesso no GitHub!';
+    editorStatus.textContent = 'Alterações salvas com sucesso!';
   } catch (error) {
     editorStatus.style.color = 'red';
     editorStatus.textContent = error.message;
   }
 });
 
+// Criar Novo Arquivo
+newFileBtn.addEventListener('click', async () => {
+  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
+  if (!filename) return;
+
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
+
+  try {
+    editorStatus.style.color = '#333';
+    editorStatus.textContent = 'Criando arquivo...';
+
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      fullPath,
+      '', // Conteúdo inicial vazio
+      null, // Sem SHA pois é um novo arquivo
+      `Criado arquivo ${filename} via Web CMS`
+    );
+
+    editorStatus.style.color = 'green';
+    editorStatus.textContent = 'Arquivo criado com sucesso!';
+    loadFiles(currentFolderPath);
+  } catch (error) {
+    editorStatus.style.color = 'red';
+    editorStatus.textContent = 'Erro ao criar arquivo: ' + error.message;
+  }
+});
+
+// Excluir Arquivo
+deleteFileBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+
+  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${currentFile.path}"?`);
+  if (!confirmDelete) return;
+
+  try {
+    editorStatus.style.color = '#333';
+    editorStatus.textContent = 'Excluindo arquivo...';
+
+    await github.deleteFile(
+      currentUser.login,
+      currentRepo,
+      currentFile.path,
+      currentFile.sha
+    );
+
+    currentFile = null;
+    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+    saveFileBtn.style.display = 'none';
+    deleteFileBtn.style.display = 'none';
+    currentFileTitle.textContent = 'Nenhum arquivo selecionado';
+
+    editorStatus.style.color = 'green';
+    editorStatus.textContent = 'Arquivo excluído com sucesso!';
+    loadFiles(currentFolderPath);
+  } catch (error) {
+    editorStatus.style.color = 'red';
+    editorStatus.textContent = 'Erro ao excluir arquivo: ' + error.message;
+  }
+});
+
 backToReposBtn.addEventListener('click', () => {
   currentFile = null;
   currentFolderPath = '';
-  fileContent.value = '';
+  if (monacoEditor) {
+    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+  }
   saveFileBtn.style.display = 'none';
+  deleteFileBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
   editorStatus.textContent = '';
   loadRepositories();
