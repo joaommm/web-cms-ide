@@ -4,12 +4,11 @@ class GitHubAPI {
     this.baseUrl = 'https://api.github.com';
   }
 
+  // Apenas cabeçalhos aceitos nativamente pela API do GitHub
   get headers() {
     return {
       'Authorization': `token ${this.token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
+      'Accept': 'application/vnd.github.v3+json'
     };
   }
 
@@ -23,7 +22,6 @@ class GitHubAPI {
   }
 
   async getRepositories() {
-    // Adicionado timestamp + cache no-store para desativar cache do navegador mobile
     const response = await fetch(`${this.baseUrl}/user/repos?sort=updated&t=${Date.now()}`, { 
       headers: this.headers,
       cache: 'no-store'
