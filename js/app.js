@@ -4,6 +4,7 @@ let currentRepo = null;
 let currentFile = null;
 let currentFolderPath = '';
 let monacoEditor = null;
+let isExpanded = false;
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
@@ -18,15 +19,24 @@ const repoList = document.getElementById('repo-list');
 const fileTree = document.getElementById('file-tree');
 const currentRepoTitle = document.getElementById('current-repo-title');
 const currentFileTitle = document.getElementById('current-file-title');
+
 const saveFileBtn = document.getElementById('save-file-btn');
 const deleteFileBtn = document.getElementById('delete-file-btn');
 const newFileBtn = document.getElementById('new-file-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
 const logoutBtn = document.getElementById('logout-btn');
-const editorStatus = document.getElementById('editor-status');
 const backToReposBtn = document.getElementById('back-to-repos-btn');
 const currentPathDisplay = document.getElementById('current-path-display');
 const mobileEditor = document.getElementById('mobile-editor');
+
+const previewBtn = document.getElementById('preview-btn');
+const expandBtn = document.getElementById('expand-btn');
+const fileExplorer = document.getElementById('file-explorer');
+const codeEditorArea = document.getElementById('code-editor-area');
+
+const previewModal = document.getElementById('preview-modal');
+const closePreviewBtn = document.getElementById('close-preview-btn');
+const previewFrame = document.getElementById('preview-frame');
 
 const loadingOverlay = document.getElementById('loading-overlay');
 const loadingMessage = document.getElementById('loading-message');
@@ -131,7 +141,7 @@ logoutBtn.addEventListener('click', () => {
 
 async function loadRepositories() {
   showLoading('Buscando repositórios...');
-  repoList.innerHTML = ''; // Limpa a lista antes de buscar
+  repoList.innerHTML = '';
   try {
     const repos = await github.getRepositories();
     loginSection.style.display = 'none';
@@ -157,7 +167,6 @@ async function loadRepositories() {
   }
 }
 
-// Criar Repositório no Mobile/Desktop
 newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
@@ -165,8 +174,6 @@ newRepoBtn.addEventListener('click', async () => {
   showLoading('Criando e atualizando lista...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    
-    // Tenta atualizar a lista e valida se o novo repositório já consta
     let attempts = 0;
     let found = false;
     while (attempts < 4 && !found) {
@@ -187,7 +194,6 @@ newRepoBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Repositório no Mobile/Desktop
 async function confirmDeleteRepo(repoName) {
   const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
   if (confirmText !== repoName) {
@@ -198,8 +204,6 @@ async function confirmDeleteRepo(repoName) {
   showLoading('Excluindo e atualizando...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
-    
-    // Aguarda e valida a remoção
     let attempts = 0;
     let removed = false;
     while (attempts < 4 && !removed) {
@@ -238,7 +242,7 @@ async function selectRepo(repoName) {
 async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
-  fileTree.innerHTML = ''; // Limpa árvore antes do carregamento
+  fileTree.innerHTML = '';
 
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -291,7 +295,8 @@ async function openFile(filePath) {
 
     currentFile = {
       path: fileData.path,
-      sha: fileData.sha
+      sha: fileData.sha,
+      name: fileData.name
     };
 
     currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
@@ -307,6 +312,14 @@ async function openFile(filePath) {
 
     saveFileBtn.style.display = 'inline-block';
     deleteFileBtn.style.display = 'inline-block';
+    expandBtn.style.display = 'inline-block';
+
+    // Exibe o botão de Preview se for HTML
+    if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
+      previewBtn.style.display = 'inline-block';
+    } else {
+      previewBtn.style.display = 'none';
+    }
   } catch (error) {
     showToast('Erro ao abrir arquivo: ' + error.message, 'error');
   } finally {
@@ -338,7 +351,43 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Criar Arquivo
+// Botão Expandir / Restaurar Editor
+expandBtn.addEventListener('click', () => {
+  isExpanded = !isExpanded;
+
+  if (isExpanded) {
+    codeEditorArea.classList.add('fullscreen-editor');
+    fileExplorer.style.display = 'none';
+    expandBtn.textContent = '🗗 Restaurar';
+  } else {
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandBtn.textContent = '⛶ Expandir';
+  }
+
+  if (monacoEditor && !isMobile) {
+    setTimeout(() => monacoEditor.layout(), 100);
+  }
+});
+
+// Botão Preview ao Vivo
+previewBtn.addEventListener('click', () => {
+  if (!currentFile) return;
+
+  const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  previewModal.style.display = 'flex';
+
+  // Injeta o conteúdo no iframe
+  const doc = previewFrame.contentWindow.document;
+  doc.open();
+  doc.write(content);
+  doc.close();
+});
+
+closePreviewBtn.addEventListener('click', () => {
+  previewModal.style.display = 'none';
+});
+
 newFileBtn.addEventListener('click', async () => {
   const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
   if (!filename) return;
@@ -356,7 +405,6 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
-    // Valida se o arquivo apareceu na lista
     let attempts = 0;
     let found = false;
     while (attempts < 4 && !found) {
@@ -377,7 +425,6 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Arquivo
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
@@ -399,9 +446,10 @@ deleteFileBtn.addEventListener('click', async () => {
 
     saveFileBtn.style.display = 'none';
     deleteFileBtn.style.display = 'none';
+    expandBtn.style.display = 'none';
+    previewBtn.style.display = 'none';
     currentFileTitle.textContent = 'Nenhum arquivo selecionado';
 
-    // Valida se o arquivo foi removido da lista
     let attempts = 0;
     let removed = false;
     while (attempts < 4 && !removed) {
@@ -425,11 +473,20 @@ deleteFileBtn.addEventListener('click', async () => {
 backToReposBtn.addEventListener('click', async () => {
   currentFile = null;
   currentFolderPath = '';
+  if (isExpanded) {
+    isExpanded = false;
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandBtn.textContent = '⛶ Expandir';
+  }
+
   if (isMobile) mobileEditor.value = '';
   else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
 
   saveFileBtn.style.display = 'none';
   deleteFileBtn.style.display = 'none';
+  expandBtn.style.display = 'none';
+  previewBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
   await loadRepositories();
 });
