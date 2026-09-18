@@ -7,19 +7,27 @@ class GitHubAPI {
   get headers() {
     return {
       'Authorization': `token ${this.token}`,
-      'Accept': 'application/vnd.github.v3+json'
+      'Accept': 'application/vnd.github.v3+json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
     };
   }
 
   async getUser() {
-    const response = await fetch(`${this.baseUrl}/user?t=${Date.now()}`, { headers: this.headers });
+    const response = await fetch(`${this.baseUrl}/user?t=${Date.now()}`, { 
+      headers: this.headers,
+      cache: 'no-store'
+    });
     if (!response.ok) throw new Error('Token inválido ou expirado.');
     return await response.json();
   }
 
   async getRepositories() {
-    // Adicionado ?t=timestamp para forçar a API a trazer a lista atualizada sem cache
-    const response = await fetch(`${this.baseUrl}/user/repos?sort=updated&t=${Date.now()}`, { headers: this.headers });
+    // Adicionado timestamp + cache no-store para desativar cache do navegador mobile
+    const response = await fetch(`${this.baseUrl}/user/repos?sort=updated&t=${Date.now()}`, { 
+      headers: this.headers,
+      cache: 'no-store'
+    });
     if (!response.ok) throw new Error('Erro ao carregar repositórios.');
     return await response.json();
   }
@@ -48,19 +56,24 @@ class GitHubAPI {
       headers: this.headers
     });
 
-    if (!response.ok) throw new Error('Erro ao excluir repositório. Verifique se o seu Token tem a permissão "delete_repo".');
+    if (!response.ok) throw new Error('Erro ao excluir repositório.');
     return true;
   }
 
   async getContents(owner, repo, path = '') {
-    // Adicionado ?t=timestamp para forçar a API a trazer os arquivos atualizados sem cache
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { headers: this.headers });
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { 
+      headers: this.headers,
+      cache: 'no-store'
+    });
     if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
     return await response.json();
   }
 
   async getFile(owner, repo, path) {
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { headers: this.headers });
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { 
+      headers: this.headers,
+      cache: 'no-store'
+    });
     if (!response.ok) throw new Error('Erro ao carregar o arquivo.');
     return await response.json();
   }
