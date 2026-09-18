@@ -4,6 +4,7 @@ let currentRepo = null;
 let currentFile = null;
 let currentFolderPath = '';
 let monacoEditor = null;
+const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -20,20 +21,48 @@ const currentFileTitle = document.getElementById('current-file-title');
 const saveFileBtn = document.getElementById('save-file-btn');
 const deleteFileBtn = document.getElementById('delete-file-btn');
 const newFileBtn = document.getElementById('new-file-btn');
+const newRepoBtn = document.getElementById('new-repo-btn');
+const logoutBtn = document.getElementById('logout-btn');
 const editorStatus = document.getElementById('editor-status');
 const backToReposBtn = document.getElementById('back-to-repos-btn');
 const currentPathDisplay = document.getElementById('current-path-display');
+const mobileEditor = document.getElementById('mobile-editor');
 
-// Configura o Monaco Editor
-require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
-require(['vs/editor/editor.main'], function () {
-  monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
-    value: '// Selecione um arquivo para começar a editar...',
-    language: 'plaintext',
-    theme: 'vs-dark',
-    automaticLayout: true
+// Inicializa Monaco apenas em Desktop
+if (!isMobile) {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: '// Selecione um arquivo para começar a editar...',
+      language: 'plaintext',
+      theme: 'vs-dark',
+      automaticLayout: true
+    });
   });
+}
+
+// Tenta conexão automática no carregamento (Persistência no localStorage)
+window.addEventListener('DOMContentLoaded', () => {
+  const savedToken = localStorage.getItem('gh_token');
+  if (savedToken) {
+    tokenInput.value = savedToken;
+    autoConnect(savedToken);
+  }
 });
+
+async function autoConnect(token) {
+  try {
+    authStatus.style.color = '#333';
+    authStatus.textContent = 'Reconectando automaticamente...';
+    github = new GitHubAPI(token);
+    currentUser = await github.getUser();
+    loadRepositories();
+  } catch (error) {
+    authStatus.style.color = 'red';
+    authStatus.textContent = 'Sessão expirada ou token inválido.';
+    localStorage.removeItem('gh_token');
+  }
+}
 
 connectBtn.addEventListener('click', async () => {
   const token = tokenInput.value.trim();
@@ -50,15 +79,18 @@ connectBtn.addEventListener('click', async () => {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
 
-    authStatus.style.color = 'green';
-    authStatus.textContent = `Conectado como ${currentUser.login}!`;
-
-    sessionStorage.setItem('gh_token', token);
+    // Salva permanentemente no localStorage
+    localStorage.setItem('gh_token', token);
     loadRepositories();
   } catch (error) {
     authStatus.style.color = 'red';
     authStatus.textContent = error.message;
   }
+});
+
+logoutBtn.addEventListener('click', () => {
+  localStorage.removeItem('gh_token');
+  location.reload();
 });
 
 async function loadRepositories() {
@@ -73,12 +105,46 @@ async function loadRepositories() {
       const li = document.createElement('li');
       li.innerHTML = `
         <strong>${repo.name}</strong>
-        <button onclick="selectRepo('${repo.name}')">Abrir</button>
+        <div>
+          <button onclick="selectRepo('${repo.name}')">Abrir</button>
+          <button class="danger-btn" onclick="confirmDeleteRepo('${repo.name}')">Excluir</button>
+        </div>
       `;
       repoList.appendChild(li);
     });
   } catch (error) {
     alert('Erro ao listar repositórios: ' + error.message);
+  }
+}
+
+// Criar Novo Repositório
+newRepoBtn.addEventListener('click', async () => {
+  const repoName = prompt('Digite o nome do novo repositório:');
+  if (!repoName) return;
+
+  try {
+    await github.createRepository(repoName, 'Criado via Web CMS');
+    alert('Repositório criado com sucesso!');
+    loadRepositories();
+  } catch (error) {
+    alert('Erro ao criar repositório: ' + error.message);
+  }
+});
+
+// Excluir Repositório
+async function confirmDeleteRepo(repoName) {
+  const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
+  if (confirmText !== repoName) {
+    alert('Nome incorreto. Operação cancelada.');
+    return;
+  }
+
+  try {
+    await github.deleteRepository(currentUser.login, repoName);
+    alert('Repositório excluído!');
+    loadRepositories();
+  } catch (error) {
+    alert('Erro ao excluir repositório: ' + error.message);
   }
 }
 
@@ -89,8 +155,7 @@ async function selectRepo(repoName) {
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
-  // Força o re-layout do editor assim que a seção fica visível
-  if (monacoEditor) {
+  if (monacoEditor && !isMobile) {
     setTimeout(() => monacoEditor.layout(), 100);
   }
 
@@ -141,18 +206,6 @@ async function loadFiles(path = '') {
   }
 }
 
-function getLanguageFromFilename(filename) {
-  const ext = filename.split('.').pop().toLowerCase();
-  switch (ext) {
-    case 'html': return 'html';
-    case 'css': return 'css';
-    case 'js': return 'javascript';
-    case 'json': return 'json';
-    case 'md': return 'markdown';
-    default: return 'plaintext';
-  }
-}
-
 async function openFile(filePath) {
   editorStatus.style.color = '#333';
   editorStatus.textContent = 'Carregando arquivo...';
@@ -168,12 +221,10 @@ async function openFile(filePath) {
 
     currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
 
-    if (monacoEditor) {
+    if (isMobile) {
+      mobileEditor.value = decodedContent;
+    } else if (monacoEditor) {
       monacoEditor.setValue(decodedContent);
-      const language = getLanguageFromFilename(fileData.name);
-      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
-      
-      // Força o ajuste do tamanho da área de código após o carregamento
       setTimeout(() => monacoEditor.layout(), 50);
     }
 
@@ -187,13 +238,13 @@ async function openFile(filePath) {
 }
 
 saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile || !monacoEditor) return;
+  if (!currentFile) return;
 
   editorStatus.style.color = '#333';
   editorStatus.textContent = 'Guardando alterações...';
 
   try {
-    const newContent = monacoEditor.getValue();
+    const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
     const result = await github.updateFile(
       currentUser.login,
       currentRepo,
@@ -257,7 +308,9 @@ deleteFileBtn.addEventListener('click', async () => {
     );
 
     currentFile = null;
-    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+    if (isMobile) mobileEditor.value = '';
+    else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+
     saveFileBtn.style.display = 'none';
     deleteFileBtn.style.display = 'none';
     currentFileTitle.textContent = 'Nenhum arquivo selecionado';
@@ -274,9 +327,9 @@ deleteFileBtn.addEventListener('click', async () => {
 backToReposBtn.addEventListener('click', () => {
   currentFile = null;
   currentFolderPath = '';
-  if (monacoEditor) {
-    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
-  }
+  if (isMobile) mobileEditor.value = '';
+  else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+
   saveFileBtn.style.display = 'none';
   deleteFileBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
