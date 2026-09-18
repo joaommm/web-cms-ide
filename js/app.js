@@ -28,7 +28,46 @@ const backToReposBtn = document.getElementById('back-to-repos-btn');
 const currentPathDisplay = document.getElementById('current-path-display');
 const mobileEditor = document.getElementById('mobile-editor');
 
-// Inicializa Monaco apenas em Desktop
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingMessage = document.getElementById('loading-message');
+const toastContainer = document.getElementById('toast-container');
+
+// Funções de feedback de carregamento
+function showLoading(message = 'Carregando...') {
+  loadingMessage.textContent = message;
+  loadingOverlay.style.display = 'flex';
+}
+
+function hideLoading() {
+  loadingOverlay.style.display = 'none';
+}
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+
+  toastContainer.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 3500);
+}
+
+// Detecção de linguagem para o Monaco
+function getLanguageFromFilename(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': case 'htm': return 'html';
+    case 'css': return 'css';
+    case 'js': return 'javascript';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    default: return 'plaintext';
+  }
+}
+
+// Inicialização do Monaco Editor (Somente Desktop)
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
@@ -41,8 +80,7 @@ if (!isMobile) {
   });
 }
 
-
-// Aguarda o carregamento completo da página e de todos os scripts antes de reconectar
+// Conexão automática ao carregar
 window.addEventListener('load', () => {
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
@@ -52,40 +90,39 @@ window.addEventListener('load', () => {
 });
 
 async function autoConnect(token) {
+  showLoading('Reconectando ao GitHub...');
   try {
-    authStatus.style.color = '#333';
-    authStatus.textContent = 'Reconectando automaticamente...';
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
-    loadRepositories();
+    await loadRepositories();
+    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
-    authStatus.style.color = 'red';
-    authStatus.textContent = 'Sessão expirada ou token inválido.';
+    showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
+  } finally {
+    hideLoading();
   }
 }
 
 connectBtn.addEventListener('click', async () => {
   const token = tokenInput.value.trim();
   if (!token) {
-    authStatus.style.color = 'red';
-    authStatus.textContent = 'Por favor, informe o token.';
+    showToast('Por favor, informe o token.', 'error');
     return;
   }
 
-  authStatus.style.color = '#333';
-  authStatus.textContent = 'Conectando...';
-
+  showLoading('Autenticando...');
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
 
-    // Salva permanentemente no localStorage
     localStorage.setItem('gh_token', token);
-    loadRepositories();
+    await loadRepositories();
+    showToast('Conectado com sucesso!');
   } catch (error) {
-    authStatus.style.color = 'red';
-    authStatus.textContent = error.message;
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -95,6 +132,7 @@ logoutBtn.addEventListener('click', () => {
 });
 
 async function loadRepositories() {
+  showLoading('Buscando repositórios...');
   try {
     const repos = await github.getRepositories();
     loginSection.style.display = 'none';
@@ -114,21 +152,26 @@ async function loadRepositories() {
       repoList.appendChild(li);
     });
   } catch (error) {
-    alert('Erro ao listar repositórios: ' + error.message);
+    showToast('Erro ao listar repositórios: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
-// Criar Novo Repositório
+// Criar Repositório
 newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
 
+  showLoading('Criando repositório...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    alert('Repositório criado com sucesso!');
-    loadRepositories();
+    showToast('Repositório criado com sucesso!');
+    await loadRepositories();
   } catch (error) {
-    alert('Erro ao criar repositório: ' + error.message);
+    showToast('Erro ao criar repositório: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -136,16 +179,19 @@ newRepoBtn.addEventListener('click', async () => {
 async function confirmDeleteRepo(repoName) {
   const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
   if (confirmText !== repoName) {
-    alert('Nome incorreto. Operação cancelada.');
+    showToast('Nome incorreto. Operação cancelada.', 'error');
     return;
   }
 
+  showLoading('Excluindo repositório...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
-    alert('Repositório excluído!');
-    loadRepositories();
+    showToast('Repositório excluído com sucesso!');
+    await loadRepositories();
   } catch (error) {
-    alert('Erro ao excluir repositório: ' + error.message);
+    showToast('Erro ao excluir repositório: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -161,12 +207,12 @@ async function selectRepo(repoName) {
   }
 
   currentFolderPath = '';
-  loadFiles(currentFolderPath);
+  await loadFiles(currentFolderPath);
 }
 
 async function loadFiles(path = '') {
+  showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
-  fileTree.innerHTML = '<li>Carregando arquivos...</li>';
 
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -204,12 +250,14 @@ async function loadFiles(path = '') {
     });
   } catch (error) {
     fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
+    showToast('Erro ao carregar estrutura de arquivos.', 'error');
+  } finally {
+    hideLoading();
   }
 }
 
 async function openFile(filePath) {
-  editorStatus.style.color = '#333';
-  editorStatus.textContent = 'Carregando arquivo...';
+  showLoading('Abrindo arquivo...');
 
   try {
     const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
@@ -226,23 +274,24 @@ async function openFile(filePath) {
       mobileEditor.value = decodedContent;
     } else if (monacoEditor) {
       monacoEditor.setValue(decodedContent);
+      const language = getLanguageFromFilename(fileData.name);
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
       setTimeout(() => monacoEditor.layout(), 50);
     }
 
     saveFileBtn.style.display = 'inline-block';
     deleteFileBtn.style.display = 'inline-block';
-    editorStatus.textContent = '';
   } catch (error) {
-    editorStatus.style.color = 'red';
-    editorStatus.textContent = 'Erro ao abrir arquivo: ' + error.message;
+    showToast('Erro ao abrir arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
 saveFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
-  editorStatus.style.color = '#333';
-  editorStatus.textContent = 'Guardando alterações...';
+  showLoading('Salvando alterações no GitHub...');
 
   try {
     const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
@@ -255,11 +304,11 @@ saveFileBtn.addEventListener('click', async () => {
     );
 
     currentFile.sha = result.content.sha;
-    editorStatus.style.color = 'green';
-    editorStatus.textContent = 'Alterações salvas com sucesso!';
+    showToast('Alterações salvas com sucesso!');
   } catch (error) {
-    editorStatus.style.color = 'red';
-    editorStatus.textContent = error.message;
+    showToast('Erro ao salvar: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -269,10 +318,8 @@ newFileBtn.addEventListener('click', async () => {
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
 
+  showLoading('Criando novo arquivo...');
   try {
-    editorStatus.style.color = '#333';
-    editorStatus.textContent = 'Criando arquivo...';
-
     await github.updateFile(
       currentUser.login,
       currentRepo,
@@ -282,12 +329,12 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
-    editorStatus.style.color = 'green';
-    editorStatus.textContent = 'Arquivo criado com sucesso!';
-    loadFiles(currentFolderPath);
+    showToast('Arquivo criado com sucesso!');
+    await loadFiles(currentFolderPath);
   } catch (error) {
-    editorStatus.style.color = 'red';
-    editorStatus.textContent = 'Erro ao criar arquivo: ' + error.message;
+    showToast('Erro ao criar arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -297,10 +344,8 @@ deleteFileBtn.addEventListener('click', async () => {
   const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${currentFile.path}"?`);
   if (!confirmDelete) return;
 
+  showLoading('Excluindo arquivo...');
   try {
-    editorStatus.style.color = '#333';
-    editorStatus.textContent = 'Excluindo arquivo...';
-
     await github.deleteFile(
       currentUser.login,
       currentRepo,
@@ -316,12 +361,12 @@ deleteFileBtn.addEventListener('click', async () => {
     deleteFileBtn.style.display = 'none';
     currentFileTitle.textContent = 'Nenhum arquivo selecionado';
 
-    editorStatus.style.color = 'green';
-    editorStatus.textContent = 'Arquivo excluído com sucesso!';
-    loadFiles(currentFolderPath);
+    showToast('Arquivo excluído com sucesso!');
+    await loadFiles(currentFolderPath);
   } catch (error) {
-    editorStatus.style.color = 'red';
-    editorStatus.textContent = 'Erro ao excluir arquivo: ' + error.message;
+    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -334,6 +379,5 @@ backToReposBtn.addEventListener('click', () => {
   saveFileBtn.style.display = 'none';
   deleteFileBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
-  editorStatus.textContent = '';
   loadRepositories();
 });
