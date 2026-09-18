@@ -12,24 +12,24 @@ class GitHubAPI {
   }
 
   async getUser() {
-    const response = await fetch(`${this.baseUrl}/user`, { headers: this.headers });
+    const response = await fetch(`${this.baseUrl}/user?t=${Date.now()}`, { headers: this.headers });
     if (!response.ok) throw new Error('Token inválido ou expirado.');
     return await response.json();
   }
 
   async getRepositories() {
-    const response = await fetch(`${this.baseUrl}/user/repos?sort=updated`, { headers: this.headers });
+    // Adicionado ?t=timestamp para forçar a API a trazer a lista atualizada sem cache
+    const response = await fetch(`${this.baseUrl}/user/repos?sort=updated&t=${Date.now()}`, { headers: this.headers });
     if (!response.ok) throw new Error('Erro ao carregar repositórios.');
     return await response.json();
   }
 
-  // Criar novo repositório na conta do usuário
   async createRepository(name, description = '', isPrivate = false) {
     const body = {
       name: name,
       description: description,
       private: isPrivate,
-      auto_init: true // Já cria com um README.md inicial
+      auto_init: true
     };
 
     const response = await fetch(`${this.baseUrl}/user/repos`, {
@@ -42,7 +42,6 @@ class GitHubAPI {
     return await response.json();
   }
 
-  // Excluir repositório existente
   async deleteRepository(owner, repo) {
     const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}`, {
       method: 'DELETE',
@@ -54,13 +53,14 @@ class GitHubAPI {
   }
 
   async getContents(owner, repo, path = '') {
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, { headers: this.headers });
+    // Adicionado ?t=timestamp para forçar a API a trazer os arquivos atualizados sem cache
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { headers: this.headers });
     if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
     return await response.json();
   }
 
   async getFile(owner, repo, path) {
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, { headers: this.headers });
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { headers: this.headers });
     if (!response.ok) throw new Error('Erro ao carregar o arquivo.');
     return await response.json();
   }
