@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Web CMS / IDE</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- Monaco Editor via CDN -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
 </head>
 <body>
@@ -14,7 +13,7 @@
 
     <!-- Tela de Autenticação -->
     <section id="login-section">
-      <h2>Autenticação!</h2>
+      <h2>Autenticação</h2>
       <p>Insira seu Personal Access Token do GitHub para conectar:</p>
       <input type="password" id="token-input" placeholder="ghp_..." />
       <button id="connect-btn">Conectar</button>
@@ -23,7 +22,11 @@
 
     <!-- Painel de Repositórios -->
     <section id="dashboard-section" style="display: none;">
-      <h2>Meus Repositórios</h2>
+      <div class="dashboard-header">
+        <h2>Meus Repositórios</h2>
+        <button id="new-repo-btn">+ Novo Repositório</button>
+      </div>
+      <button id="logout-btn" class="danger-btn" style="margin-top: 10px;">Desconectar / Trocar Token</button>
       <ul id="repo-list"></ul>
     </section>
 
@@ -43,7 +46,7 @@
           <ul id="file-tree"></ul>
         </div>
 
-        <!-- Área do Editor Monaco -->
+        <!-- Área do Editor -->
         <div class="code-editor-area">
           <div class="editor-header">
             <h3 id="current-file-title">Nenhum arquivo selecionado</h3>
@@ -52,15 +55,17 @@
               <button id="delete-file-btn" class="danger-btn" style="display: none;">Excluir Arquivo</button>
             </div>
           </div>
-          <!-- Container para o Monaco Editor -->
+          
+          <!-- Editor Misto: Monaco para Desktop e Textarea para Mobile -->
           <div id="monaco-container"></div>
+          <textarea id="mobile-editor" placeholder="Selecione um arquivo..." style="display: none;"></textarea>
+
           <p id="editor-status"></p>
         </div>
       </div>
     </section>
   </div>
 
-  <!-- Carregador do Monaco Editor -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
   <script src="js/github.js"></script>
   <script src="js/app.js"></script>
