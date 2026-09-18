@@ -41,8 +41,9 @@ if (!isMobile) {
   });
 }
 
-// Tenta conexão automática no carregamento (Persistência no localStorage)
-window.addEventListener('DOMContentLoaded', () => {
+
+// Aguarda o carregamento completo da página e de todos os scripts antes de reconectar
+window.addEventListener('load', () => {
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
     tokenInput.value = savedToken;
