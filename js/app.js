@@ -32,7 +32,9 @@ const loadingOverlay = document.getElementById('loading-overlay');
 const loadingMessage = document.getElementById('loading-message');
 const toastContainer = document.getElementById('toast-container');
 
-// Funções de feedback de carregamento
+// Utilitário para aguardar a sincronização do GitHub
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
   loadingOverlay.style.display = 'flex';
@@ -54,7 +56,6 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-// Detecção de linguagem para o Monaco
 function getLanguageFromFilename(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   switch (ext) {
@@ -67,7 +68,6 @@ function getLanguageFromFilename(filename) {
   }
 }
 
-// Inicialização do Monaco Editor (Somente Desktop)
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
@@ -80,7 +80,6 @@ if (!isMobile) {
   });
 }
 
-// Conexão automática ao carregar
 window.addEventListener('load', () => {
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
@@ -158,14 +157,15 @@ async function loadRepositories() {
   }
 }
 
-// Criar Repositório
+// Criar Repositório (com sincronização)
 newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
 
-  showLoading('Criando repositório...');
+  showLoading('Criando repositório e sincronizando...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
+    await delay(1200); // Aguarda sincronização do GitHub
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -175,7 +175,7 @@ newRepoBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Repositório
+// Excluir Repositório (com sincronização)
 async function confirmDeleteRepo(repoName) {
   const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
   if (confirmText !== repoName) {
@@ -183,9 +183,10 @@ async function confirmDeleteRepo(repoName) {
     return;
   }
 
-  showLoading('Excluindo repositório...');
+  showLoading('Excluindo repositório e sincronizando...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
+    await delay(1200); // Aguarda sincronização do GitHub
     showToast('Repositório excluído com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -222,11 +223,11 @@ async function loadFiles(path = '') {
       const backLi = document.createElement('li');
       backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
       backLi.style.cursor = 'pointer';
-      backLi.addEventListener('click', () => {
+      backLi.addEventListener('click', async () => {
         const pathParts = currentFolderPath.split('/');
         pathParts.pop();
         currentFolderPath = pathParts.join('/');
-        loadFiles(currentFolderPath);
+        await loadFiles(currentFolderPath);
       });
       fileTree.appendChild(backLi);
     }
@@ -238,9 +239,9 @@ async function loadFiles(path = '') {
       li.style.cursor = 'pointer';
 
       if (item.type === 'dir') {
-        li.addEventListener('click', () => {
+        li.addEventListener('click', async () => {
           currentFolderPath = item.path;
-          loadFiles(currentFolderPath);
+          await loadFiles(currentFolderPath);
         });
       } else if (item.type === 'file') {
         li.addEventListener('click', () => openFile(item.path));
@@ -312,13 +313,14 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
+// Criar Arquivo (com sincronização)
 newFileBtn.addEventListener('click', async () => {
   const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
   if (!filename) return;
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
 
-  showLoading('Criando novo arquivo...');
+  showLoading('Criando novo arquivo e atualizando lista...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -329,6 +331,7 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
+    await delay(1000); // Aguarda sincronização do GitHub
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
@@ -338,13 +341,14 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
+// Excluir Arquivo (com sincronização)
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
   const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${currentFile.path}"?`);
   if (!confirmDelete) return;
 
-  showLoading('Excluindo arquivo...');
+  showLoading('Excluindo arquivo e atualizando lista...');
   try {
     await github.deleteFile(
       currentUser.login,
@@ -361,6 +365,7 @@ deleteFileBtn.addEventListener('click', async () => {
     deleteFileBtn.style.display = 'none';
     currentFileTitle.textContent = 'Nenhum arquivo selecionado';
 
+    await delay(1000); // Aguarda sincronização do GitHub
     showToast('Arquivo excluído com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
@@ -370,7 +375,7 @@ deleteFileBtn.addEventListener('click', async () => {
   }
 });
 
-backToReposBtn.addEventListener('click', () => {
+backToReposBtn.addEventListener('click', async () => {
   currentFile = null;
   currentFolderPath = '';
   if (isMobile) mobileEditor.value = '';
@@ -379,5 +384,5 @@ backToReposBtn.addEventListener('click', () => {
   saveFileBtn.style.display = 'none';
   deleteFileBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
-  loadRepositories();
+  await loadRepositories();
 });
