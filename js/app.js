@@ -1,7 +1,8 @@
 let github = null;
 let currentUser = null;
 let currentRepo = null;
-let currentFile = null; // Guardará as informações do ficheiro aberto (path, sha)
+let currentFile = null;
+let currentPath = ''; // Controla a pasta atual
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -69,6 +70,7 @@ async function loadRepositories() {
 
 async function selectRepo(repoName) {
   currentRepo = repoName;
+  currentPath = ''; // Reseta para a raiz ao abrir um repositório
   currentRepoTitle.textContent = `Repositório: ${repoName}`;
 
   dashboardSection.style.display = 'none';
@@ -78,35 +80,54 @@ async function selectRepo(repoName) {
 }
 
 async function loadFiles(path = '') {
-  fileTree.innerHTML = '<li>Carregando ficheiros...</li>';
+  currentPath = path;
+  fileTree.innerHTML = '<li>Carregando arquivos...</li>';
+  
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
     fileTree.innerHTML = '';
+
+    // Se estivermos dentro de uma subpasta, cria o item para voltar para a pasta pai
+    if (path !== '') {
+      const backLi = document.createElement('li');
+      backLi.innerHTML = '<strong>⬅️ .. (Voltar)</strong>';
+      backLi.style.cursor = 'pointer';
+      backLi.addEventListener('click', () => {
+        const parentPath = path.substring(0, path.lastIndexOf('/'));
+        loadFiles(parentPath);
+      });
+      fileTree.appendChild(backLi);
+    }
 
     contents.forEach(item => {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
       li.textContent = `${icon} ${item.name}`;
 
-      if (item.type === 'file') {
+      if (item.type === 'dir') {
+        // Entra na subpasta ao clicar
+        li.style.fontWeight = 'bold';
+        li.addEventListener('click', () => loadFiles(item.path));
+      } else if (item.type === 'file') {
+        // Abre o arquivo no editor ao clicar
         li.addEventListener('click', () => openFile(item.path));
       }
 
       fileTree.appendChild(li);
     });
   } catch (error) {
-    fileTree.innerHTML = '<li>Erro ao carregar ficheiros.</li>';
+    fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
   }
 }
 
 async function openFile(filePath) {
   editorStatus.style.color = '#333';
-  editorStatus.textContent = 'Carregando ficheiro...';
+  editorStatus.textContent = 'Carregando arquivo...';
 
   try {
     const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
     
-    // Decodifica conteúdo Base64 (suportando caracteres especiais/UTF-8)
+    // Decodifica conteúdo Base64 com suporte a caracteres UTF-8
     const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
 
     currentFile = {
@@ -114,13 +135,13 @@ async function openFile(filePath) {
       sha: fileData.sha
     };
 
-    currentFileTitle.textContent = `Ficheiro: ${fileData.name}`;
+    currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
     fileContent.value = decodedContent;
     saveFileBtn.style.display = 'inline-block';
     editorStatus.textContent = '';
   } catch (error) {
     editorStatus.style.color = 'red';
-    editorStatus.textContent = 'Erro ao abrir ficheiro: ' + error.message;
+    editorStatus.textContent = 'Erro ao abrir arquivo: ' + error.message;
   }
 }
 
@@ -128,7 +149,7 @@ saveFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
   editorStatus.style.color = '#333';
-  editorStatus.textContent = 'Guardando alterações...';
+  editorStatus.textContent = 'Salvando alterações...';
 
   try {
     const newContent = fileContent.value;
@@ -140,11 +161,11 @@ saveFileBtn.addEventListener('click', async () => {
       currentFile.sha
     );
 
-    // Atualiza o SHA do ficheiro com a nova versão retornada pela API
+    // Atualiza o SHA do arquivo para permitir edições subsequentes na mesma sessão
     currentFile.sha = result.content.sha;
 
     editorStatus.style.color = 'green';
-    editorStatus.textContent = 'Alterações guardadas com sucesso no GitHub!';
+    editorStatus.textContent = 'Alterações salvas com sucesso no GitHub!';
   } catch (error) {
     editorStatus.style.color = 'red';
     editorStatus.textContent = error.message;
@@ -155,7 +176,7 @@ backToReposBtn.addEventListener('click', () => {
   currentFile = null;
   fileContent.value = '';
   saveFileBtn.style.display = 'none';
-  currentFileTitle.textContent = 'Nenhum ficheiro selecionado';
+  currentFileTitle.textContent = 'Nenhum arquivo selecionado';
   editorStatus.textContent = '';
   loadRepositories();
 });
