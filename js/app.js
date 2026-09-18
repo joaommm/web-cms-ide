@@ -89,6 +89,11 @@ async function selectRepo(repoName) {
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
+  // Força o re-layout do editor assim que a seção fica visível
+  if (monacoEditor) {
+    setTimeout(() => monacoEditor.layout(), 100);
+  }
+
   currentFolderPath = '';
   loadFiles(currentFolderPath);
 }
@@ -104,6 +109,7 @@ async function loadFiles(path = '') {
     if (path !== '') {
       const backLi = document.createElement('li');
       backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
+      backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', () => {
         const pathParts = currentFolderPath.split('/');
         pathParts.pop();
@@ -117,6 +123,7 @@ async function loadFiles(path = '') {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
       li.textContent = `${icon} ${item.name}`;
+      li.style.cursor = 'pointer';
 
       if (item.type === 'dir') {
         li.addEventListener('click', () => {
@@ -134,7 +141,6 @@ async function loadFiles(path = '') {
   }
 }
 
-// Detecta a linguagem do Monaco Editor pela extensão
 function getLanguageFromFilename(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   switch (ext) {
@@ -166,6 +172,9 @@ async function openFile(filePath) {
       monacoEditor.setValue(decodedContent);
       const language = getLanguageFromFilename(fileData.name);
       monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+      
+      // Força o ajuste do tamanho da área de código após o carregamento
+      setTimeout(() => monacoEditor.layout(), 50);
     }
 
     saveFileBtn.style.display = 'inline-block';
@@ -202,7 +211,6 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Criar Novo Arquivo
 newFileBtn.addEventListener('click', async () => {
   const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
   if (!filename) return;
@@ -217,8 +225,8 @@ newFileBtn.addEventListener('click', async () => {
       currentUser.login,
       currentRepo,
       fullPath,
-      '', // Conteúdo inicial vazio
-      null, // Sem SHA pois é um novo arquivo
+      '',
+      null,
       `Criado arquivo ${filename} via Web CMS`
     );
 
@@ -231,7 +239,6 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Arquivo
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
