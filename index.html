@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -20,10 +19,33 @@
       <p id="auth-status"></p>
     </section>
 
-    <!-- Painel de Repositórios (oculto inicialmente) -->
+    <!-- Painel de Repositórios -->
     <section id="dashboard-section" style="display: none;">
       <h2>Meus Repositórios</h2>
       <ul id="repo-list"></ul>
+    </section>
+
+    <!-- Painel do Editor de Ficheiros -->
+    <section id="editor-section" style="display: none;">
+      <button id="back-to-repos-btn">← Voltar aos Repositórios</button>
+      <h2 id="current-repo-title"></h2>
+
+      <div class="workspace">
+        <!-- Navegador de Ficheiros -->
+        <div class="file-explorer">
+          <h3>Ficheiros</h3>
+          <ul id="file-tree"></ul>
+        </div>
+
+        <!-- Área de Edição -->
+        <div class="code-editor-area">
+          <h3 id="current-file-title">Nenhum ficheiro selecionado</h3>
+          <textarea id="file-content" placeholder="Selecione um ficheiro para editar..."></textarea>
+          <br>
+          <button id="save-file-btn" style="display: none;">Guardar Alterações</button>
+          <p id="editor-status"></p>
+        </div>
+      </div>
     </section>
   </div>
 
