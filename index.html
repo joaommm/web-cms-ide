@@ -17,6 +17,17 @@
   <!-- Contêiner de Notificações Toast -->
   <div id="toast-container"></div>
 
+  <!-- Modal de Preview ao Vivo -->
+  <div id="preview-modal" style="display: none;">
+    <div class="preview-content">
+      <div class="preview-header">
+        <h3>Visualização ao Vivo</h3>
+        <button id="close-preview-btn" class="danger-btn">Fechar ✖</button>
+      </div>
+      <iframe id="preview-frame"></iframe>
+    </div>
+  </div>
+
   <div id="app">
     <h1>Web CMS / IDE</h1>
 
@@ -46,7 +57,7 @@
 
       <div class="workspace">
         <!-- Navegador de Arquivos -->
-        <div class="file-explorer">
+        <div class="file-explorer" id="file-explorer">
           <div class="explorer-header">
             <h3>Arquivos</h3>
             <button id="new-file-btn" title="Novo Arquivo">+</button>
@@ -56,16 +67,18 @@
         </div>
 
         <!-- Área do Editor -->
-        <div class="code-editor-area">
+        <div class="code-editor-area" id="code-editor-area">
           <div class="editor-header">
             <h3 id="current-file-title">Nenhum arquivo selecionado</h3>
             <div class="editor-actions">
+              <button id="preview-btn" class="secondary-btn" style="display: none;">👁️ Preview</button>
+              <button id="expand-btn" class="secondary-btn" style="display: none;">⛶ Expandir</button>
               <button id="save-file-btn" style="display: none;">Guardar Alterações</button>
-              <button id="delete-file-btn" class="danger-btn" style="display: none;">Excluir Arquivo</button>
+              <button id="delete-file-btn" class="danger-btn" style="display: none;">Excluir</button>
             </div>
           </div>
           
-          <!-- Editor Misto: Monaco para Desktop e Textarea para Mobile -->
+          <!-- Editor Misto -->
           <div id="monaco-container"></div>
           <textarea id="mobile-editor" placeholder="Selecione um arquivo..." style="display: none;"></textarea>
 
