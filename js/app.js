@@ -32,7 +32,6 @@ const loadingOverlay = document.getElementById('loading-overlay');
 const loadingMessage = document.getElementById('loading-message');
 const toastContainer = document.getElementById('toast-container');
 
-// Utilitário para aguardar a sincronização do GitHub
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function showLoading(message = 'Carregando...') {
@@ -132,6 +131,7 @@ logoutBtn.addEventListener('click', () => {
 
 async function loadRepositories() {
   showLoading('Buscando repositórios...');
+  repoList.innerHTML = ''; // Limpa a lista antes de buscar
   try {
     const repos = await github.getRepositories();
     loginSection.style.display = 'none';
@@ -157,15 +157,27 @@ async function loadRepositories() {
   }
 }
 
-// Criar Repositório (com sincronização)
+// Criar Repositório no Mobile/Desktop
 newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
 
-  showLoading('Criando repositório e sincronizando...');
+  showLoading('Criando e atualizando lista...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    await delay(1200); // Aguarda sincronização do GitHub
+    
+    // Tenta atualizar a lista e valida se o novo repositório já consta
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const repos = await github.getRepositories();
+      if (repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -175,7 +187,7 @@ newRepoBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Repositório (com sincronização)
+// Excluir Repositório no Mobile/Desktop
 async function confirmDeleteRepo(repoName) {
   const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
   if (confirmText !== repoName) {
@@ -183,10 +195,22 @@ async function confirmDeleteRepo(repoName) {
     return;
   }
 
-  showLoading('Excluindo repositório e sincronizando...');
+  showLoading('Excluindo e atualizando...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
-    await delay(1200); // Aguarda sincronização do GitHub
+    
+    // Aguarda e valida a remoção
+    let attempts = 0;
+    let removed = false;
+    while (attempts < 4 && !removed) {
+      await delay(1000);
+      const repos = await github.getRepositories();
+      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
+        removed = true;
+      }
+      attempts++;
+    }
+
     showToast('Repositório excluído com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -214,6 +238,7 @@ async function selectRepo(repoName) {
 async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
+  fileTree.innerHTML = ''; // Limpa árvore antes do carregamento
 
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -313,14 +338,14 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Criar Arquivo (com sincronização)
+// Criar Arquivo
 newFileBtn.addEventListener('click', async () => {
   const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
   if (!filename) return;
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
 
-  showLoading('Criando novo arquivo e atualizando lista...');
+  showLoading('Criando arquivo e atualizando...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -331,7 +356,18 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
-    await delay(1000); // Aguarda sincronização do GitHub
+    // Valida se o arquivo apareceu na lista
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
+      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === filename.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
@@ -341,14 +377,14 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Excluir Arquivo (com sincronização)
+// Excluir Arquivo
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
   const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${currentFile.path}"?`);
   if (!confirmDelete) return;
 
-  showLoading('Excluindo arquivo e atualizando lista...');
+  showLoading('Excluindo arquivo e atualizando...');
   try {
     await github.deleteFile(
       currentUser.login,
@@ -365,7 +401,18 @@ deleteFileBtn.addEventListener('click', async () => {
     deleteFileBtn.style.display = 'none';
     currentFileTitle.textContent = 'Nenhum arquivo selecionado';
 
-    await delay(1000); // Aguarda sincronização do GitHub
+    // Valida se o arquivo foi removido da lista
+    let attempts = 0;
+    let removed = false;
+    while (attempts < 4 && !removed) {
+      await delay(1000);
+      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
+      if (Array.isArray(contents) && !contents.some(c => c.path === currentFile?.path)) {
+        removed = true;
+      }
+      attempts++;
+    }
+
     showToast('Arquivo excluído com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
