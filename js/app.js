@@ -2,7 +2,7 @@ let github = null;
 let currentUser = null;
 let currentRepo = null;
 let currentFile = null;
-let currentPath = ''; // Controla a pasta atual
+let currentFolderPath = ''; // Controla a pasta em que o usuário está navegando
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -70,31 +70,33 @@ async function loadRepositories() {
 
 async function selectRepo(repoName) {
   currentRepo = repoName;
-  currentPath = ''; // Reseta para a raiz ao abrir um repositório
   currentRepoTitle.textContent = `Repositório: ${repoName}`;
 
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
-  loadFiles('');
+  // Reseta para a raiz do repositório
+  currentFolderPath = '';
+  loadFiles(currentFolderPath);
 }
 
 async function loadFiles(path = '') {
-  currentPath = path;
   fileTree.innerHTML = '<li>Carregando arquivos...</li>';
-  
   try {
     const contents = await github.getContents(currentUser.login, currentRepo, path);
     fileTree.innerHTML = '';
 
-    // Se estivermos dentro de uma subpasta, cria o item para voltar para a pasta pai
+    // Se estivermos dentro de uma subpasta, cria a opção de voltar um nível
     if (path !== '') {
       const backLi = document.createElement('li');
-      backLi.innerHTML = '<strong>⬅️ .. (Voltar)</strong>';
+      backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
       backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', () => {
-        const parentPath = path.substring(0, path.lastIndexOf('/'));
-        loadFiles(parentPath);
+        // Remove o último diretório do caminho
+        const pathParts = currentFolderPath.split('/');
+        pathParts.pop();
+        currentFolderPath = pathParts.join('/');
+        loadFiles(currentFolderPath);
       });
       fileTree.appendChild(backLi);
     }
@@ -103,13 +105,16 @@ async function loadFiles(path = '') {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
       li.textContent = `${icon} ${item.name}`;
+      li.style.cursor = 'pointer';
 
       if (item.type === 'dir') {
-        // Entra na subpasta ao clicar
-        li.style.fontWeight = 'bold';
-        li.addEventListener('click', () => loadFiles(item.path));
+        // Ao clicar numa pasta, atualiza o caminho atual e carrega seu conteúdo
+        li.addEventListener('click', () => {
+          currentFolderPath = item.path;
+          loadFiles(currentFolderPath);
+        });
       } else if (item.type === 'file') {
-        // Abre o arquivo no editor ao clicar
+        // Ao clicar num arquivo, abre o arquivo para edição
         li.addEventListener('click', () => openFile(item.path));
       }
 
@@ -127,7 +132,7 @@ async function openFile(filePath) {
   try {
     const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
     
-    // Decodifica conteúdo Base64 com suporte a caracteres UTF-8
+    // Decodifica conteúdo Base64 (com suporte a UTF-8)
     const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
 
     currentFile = {
@@ -149,7 +154,7 @@ saveFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
   editorStatus.style.color = '#333';
-  editorStatus.textContent = 'Salvando alterações...';
+  editorStatus.textContent = 'Guardando alterações...';
 
   try {
     const newContent = fileContent.value;
@@ -161,7 +166,6 @@ saveFileBtn.addEventListener('click', async () => {
       currentFile.sha
     );
 
-    // Atualiza o SHA do arquivo para permitir edições subsequentes na mesma sessão
     currentFile.sha = result.content.sha;
 
     editorStatus.style.color = 'green';
@@ -174,6 +178,7 @@ saveFileBtn.addEventListener('click', async () => {
 
 backToReposBtn.addEventListener('click', () => {
   currentFile = null;
+  currentFolderPath = '';
   fileContent.value = '';
   saveFileBtn.style.display = 'none';
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
