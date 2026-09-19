@@ -1,674 +1,590 @@
-let github = null;
-let currentUser = null;
-let currentRepo = null;
-let currentFile = null;
-let originalFileContent = '';
-let hasUnsavedChanges = false;
-let currentFolderPath = '';
-let monacoEditor = null;
-let isExpanded = false;
-let isDeleteMode = false;
-const isMobile = window.innerWidth <= 768;
+// Estado da Aplicação
+const state = {
+  token: '',
+  user: null,
+  currentRepo: null,
+  currentBranch: 'main',
+  currentPath: '',
+  files: [],
+  selectedFile: null,
+  editor: null,
+  isDeleteMode: false,
+  fileToDelete: null
+};
 
-const tokenInput = document.getElementById('token-input');
-const connectBtn = document.getElementById('connect-btn');
-const authStatus = document.getElementById('auth-status');
+// SVG Icons
+const ICONS = {
+  power: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>`,
+  preview: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+  expand: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`,
+  shrink: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="10" y1="14" x2="3" y2="21"></line></svg>`,
+  delete: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+  save: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`,
+  folderEmpty: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e3a008" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
+  folderFull: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="#e3a008"/><path d="M19 13h-6v6h6v-6z" fill="#ffffff" opacity="0.4"/></svg>`,
+  file: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`
+};
 
-const mainHeader = document.getElementById('main-header');
-const loginSection = document.getElementById('login-section');
-const dashboardSection = document.getElementById('dashboard-section');
-const editorSection = document.getElementById('editor-section');
-
-const repoList = document.getElementById('repo-list');
-const fileTree = document.getElementById('file-tree');
-const currentRepoTitle = document.getElementById('current-repo-title');
-const currentFileTitle = document.getElementById('current-file-title');
-
-const saveFileBtn = document.getElementById('save-file-btn');
-const deleteFileBtn = document.getElementById('delete-file-btn');
-const newFileBtn = document.getElementById('new-file-btn');
-const newFolderBtn = document.getElementById('new-folder-btn');
-const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
-const newRepoBtn = document.getElementById('new-repo-btn');
-
-const logoutWrapper = document.getElementById('logout-wrapper');
-const logoutPopover = document.getElementById('logout-popover');
-const powerToggleBtn = document.getElementById('power-toggle-btn');
-const logoutBtn = document.getElementById('logout-btn');
-
-const backToReposBtn = document.getElementById('back-to-repos-btn');
-const currentPathDisplay = document.getElementById('current-path-display');
-const mobileEditor = document.getElementById('mobile-editor');
-
-const previewBtn = document.getElementById('preview-btn');
-const expandBtn = document.getElementById('expand-btn');
-const expandIcon = document.getElementById('expand-icon');
-const expandText = document.getElementById('expand-text');
-const fileExplorer = document.getElementById('file-explorer');
-const codeEditorArea = document.getElementById('code-editor-area');
-
-const previewModal = document.getElementById('preview-modal');
-const closePreviewBtn = document.getElementById('close-preview-btn');
-const previewFrame = document.getElementById('preview-frame');
-
-const loadingOverlay = document.getElementById('loading-overlay');
-const loadingMessage = document.getElementById('loading-message');
-const toastContainer = document.getElementById('toast-container');
-
-// SVG ÍCONES PARA RETRAIR E EXPANDIR
-const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
-const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
-
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function showLoading(message = 'Carregando...') {
-  loadingMessage.textContent = message;
-  loadingOverlay.style.display = 'flex';
-}
-
-function hideLoading() {
-  loadingOverlay.style.display = 'none';
+// Utilitários de UI
+function showLoading(show = true) {
+  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
 }
 
 function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.textContent = message;
-
-  toastContainer.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 3500);
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
 }
 
-function setActionButtonVisibility(button, visible) {
-  if (visible) {
-    button.classList.remove('action-hidden');
-    button.classList.add('action-visible');
-  } else {
-    button.classList.remove('action-visible');
-    button.classList.add('action-hidden');
-  }
-}
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+  initMonaco();
+  checkAuth();
+  setupEventListeners();
+});
 
-function updateSaveButtonState(modified) {
-  hasUnsavedChanges = modified;
-  if (modified) {
-    saveFileBtn.classList.remove('save-disabled');
-    saveFileBtn.classList.add('save-active');
-    saveFileBtn.disabled = false;
-    saveFileBtn.textContent = '* Salvar';
-  } else {
-    saveFileBtn.classList.remove('save-active');
-    saveFileBtn.classList.add('save-disabled');
-    saveFileBtn.disabled = true;
-    saveFileBtn.textContent = 'Salvar';
-  }
-}
-
-function checkUnsavedChanges() {
-  if (hasUnsavedChanges) {
-    return confirm('Você possui alterações não salvas no arquivo atual. Deseja descartá-las?');
-  }
-  return true;
-}
-
-function getLanguageFromFilename(filename) {
-  const ext = filename.split('.').pop().toLowerCase();
-  switch (ext) {
-    case 'html': case 'htm': return 'html';
-    case 'css': return 'css';
-    case 'js': return 'javascript';
-    case 'json': return 'json';
-    case 'md': return 'markdown';
-    default: return 'plaintext';
-  }
-}
-
-if (!isMobile) {
-  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
-  require(['vs/editor/editor.main'], function () {
-    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
-      value: '// Selecione um arquivo para começar a editar...',
+function initMonaco() {
+  require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs' }});
+  require(['vs/editor/editor.main'], function() {
+    state.editor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: '// Selecione um arquivo para editar',
       language: 'plaintext',
-      theme: 'vs-dark',
+      theme: 'vs-light',
       automaticLayout: true
     });
 
-    monacoEditor.onDidChangeModelContent(() => {
-      if (currentFile) {
-        const currentContent = monacoEditor.getValue();
-        updateSaveButtonState(currentContent !== originalFileContent);
+    state.editor.onDidChangeModelContent(() => {
+      const isMobile = window.innerWidth <= 768;
+      if (!isMobile && state.selectedFile) {
+        setSaveButtonActive(true);
       }
     });
   });
+
+  const mobileEditor = document.getElementById('mobile-editor');
+  mobileEditor.addEventListener('input', () => {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile && state.selectedFile) {
+      setSaveButtonActive(true);
+    }
+  });
 }
 
-mobileEditor.addEventListener('input', () => {
-  if (currentFile) {
-    const currentContent = mobileEditor.value;
-    updateSaveButtonState(currentContent !== originalFileContent);
-  }
-});
-
-window.addEventListener('load', () => {
-  const savedToken = localStorage.getItem('gh_token');
-  if (savedToken) {
-    tokenInput.value = savedToken;
-    autoConnect(savedToken);
-  }
-});
-
-async function autoConnect(token) {
-  showLoading('Reconectando ao GitHub...');
-  try {
-    github = new GitHubAPI(token);
-    currentUser = await github.getUser();
-    logoutWrapper.style.display = 'flex';
-    await loadRepositories();
-    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
-  } catch (error) {
-    showToast('Sessão expirada ou token inválido.', 'error');
-    localStorage.removeItem('gh_token');
-  } finally {
-    hideLoading();
-  }
-}
-
-connectBtn.addEventListener('click', async () => {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    showToast('Por favor, informe o token.', 'error');
-    return;
-  }
-
-  showLoading('Autenticando...');
-  try {
-    github = new GitHubAPI(token);
-    currentUser = await github.getUser();
-
-    localStorage.setItem('gh_token', token);
-    logoutWrapper.style.display = 'flex';
-    await loadRepositories();
-    showToast('Conectado com sucesso!');
-  } catch (error) {
-    showToast(error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-});
-
-/* INTERAÇÃO DO POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
-powerToggleBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const isVisible = logoutPopover.classList.contains('logout-popover-visible');
-  if (isVisible) {
-    logoutPopover.classList.remove('logout-popover-visible');
-    logoutPopover.classList.add('logout-popover-hidden');
+function setSaveButtonActive(active) {
+  const saveBtn = document.getElementById('save-file-btn');
+  if (!saveBtn) return;
+  if (active) {
+    saveBtn.classList.remove('save-disabled');
+    saveBtn.classList.add('save-active');
   } else {
-    logoutPopover.classList.remove('logout-popover-hidden');
-    logoutPopover.classList.add('logout-popover-visible');
+    saveBtn.classList.remove('save-active');
+    saveBtn.classList.add('save-disabled');
   }
-});
+}
 
-document.addEventListener('click', (e) => {
-  if (!logoutWrapper.contains(e.target)) {
+function checkAuth() {
+  const savedToken = localStorage.getItem('github_token');
+  if (savedToken) {
+    state.token = savedToken;
+    validateTokenAndLoad();
+  } else {
+    showSection('auth-section');
+  }
+}
+
+function setupEventListeners() {
+  document.getElementById('save-token-btn').addEventListener('click', () => {
+    const tokenInput = document.getElementById('token-input').value.trim();
+    if (!tokenInput) return showToast('Digite um token válido', 'error');
+    state.token = tokenInput;
+    localStorage.setItem('github_token', tokenInput);
+    validateTokenAndLoad();
+  });
+
+  const powerBtn = document.getElementById('power-toggle-btn');
+  const logoutPopover = document.getElementById('logout-popover');
+
+  powerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = logoutPopover.classList.contains('logout-popover-hidden');
+    if (isHidden) {
+      logoutPopover.classList.remove('logout-popover-hidden');
+      logoutPopover.classList.add('logout-popover-visible');
+    } else {
+      logoutPopover.classList.remove('logout-popover-visible');
+      logoutPopover.classList.add('logout-popover-hidden');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('logout-wrapper').contains(e.target)) {
+      logoutPopover.classList.remove('logout-popover-visible');
+      logoutPopover.classList.add('logout-popover-hidden');
+    }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('github_token');
+    state.token = '';
+    state.user = null;
     logoutPopover.classList.remove('logout-popover-visible');
     logoutPopover.classList.add('logout-popover-hidden');
-  }
-});
+    showSection('auth-section');
+    showToast('Desconectado com sucesso!');
+  });
 
-logoutBtn.addEventListener('click', () => {
-  if (!checkUnsavedChanges()) return;
-  localStorage.removeItem('gh_token');
-  location.reload();
-});
+  document.getElementById('back-to-repos-btn').addEventListener('click', () => {
+    state.currentRepo = null;
+    state.currentPath = '';
+    state.selectedFile = null;
+    resetEditorActionsState();
+    showSection('dashboard-section');
+  });
+
+  document.getElementById('create-repo-btn').addEventListener('click', createRepository);
+  document.getElementById('new-file-btn').addEventListener('click', createNewFile);
+  document.getElementById('new-folder-btn').addEventListener('click', createNewFolder);
+  
+  const toggleDeleteBtn = document.getElementById('toggle-delete-mode-btn');
+  toggleDeleteBtn.addEventListener('click', toggleDeleteMode);
+
+  document.getElementById('save-file-btn').addEventListener('click', saveCurrentFile);
+  document.getElementById('preview-btn').addEventListener('click', openPreview);
+  document.getElementById('close-preview-btn').addEventListener('click', closePreview);
+  document.getElementById('expand-editor-btn').addEventListener('click', toggleExpandEditor);
+}
+
+function showSection(sectionId) {
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('dashboard-section').style.display = 'none';
+  document.getElementById('editor-section').style.display = 'none';
+  document.getElementById(sectionId).style.display = 'block';
+}
+
+function resetEditorActionsState() {
+  state.selectedFile = null;
+  const actionsGroup = document.getElementById('editor-actions-group');
+  const filenameLabel = document.getElementById('current-file-name');
+  
+  if (actionsGroup) {
+    actionsGroup.classList.remove('action-visible');
+    actionsGroup.classList.add('action-hidden');
+  }
+  if (filenameLabel) filenameLabel.textContent = 'Nenhum arquivo selecionado';
+  setSaveButtonActive(false);
+}
+
+// GitHub API Integration
+async function githubFetch(endpoint, options = {}) {
+  const headers = {
+    'Authorization': `token ${state.token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    ...options.headers
+  };
+  const response = await fetch(`https://api.github.com${endpoint}`, { ...options, headers });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function validateTokenAndLoad() {
+  showLoading(true);
+  try {
+    state.user = await githubFetch('/user');
+    document.getElementById('user-info').textContent = `Conectado como: ${state.user.login}`;
+    await loadRepositories();
+    showSection('dashboard-section');
+  } catch (err) {
+    showToast('Token inválido ou expirado', 'error');
+    localStorage.removeItem('github_token');
+    showSection('auth-section');
+  } finally {
+    showLoading(false);
+  }
+}
 
 async function loadRepositories() {
-  showLoading('Buscando repositórios...');
-  repoList.innerHTML = '';
   try {
-    const repos = await github.getRepositories();
-    mainHeader.style.display = 'flex';
-    loginSection.style.display = 'none';
-    editorSection.style.display = 'none';
-    dashboardSection.style.display = 'block';
-
+    const repos = await githubFetch('/user/repos?sort=updated&per_page=100');
+    const repoList = document.getElementById('repo-list');
     repoList.innerHTML = '';
+
     repos.forEach(repo => {
       const li = document.createElement('li');
       li.innerHTML = `
-        <strong>${repo.name}</strong>
-        <div>
-          <button onclick="selectRepo('${repo.name}')">Abrir</button>
-          <button class="danger-btn" onclick="confirmDeleteRepo('${repo.name}')">Excluir</button>
-        </div>
+        <span class="repo-name-link" style="color: #0969da; font-weight: bold; cursor: pointer;">${repo.name}</span>
+        <button class="danger-btn delete-repo-btn" title="Excluir Repositório">${ICONS.delete}</button>
       `;
+
+      // Clique no nome para abrir
+      li.querySelector('.repo-name-link').addEventListener('click', () => openRepository(repo));
+      
+      // Clique no "X" / Lixeira para excluir
+      li.querySelector('.delete-repo-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteRepository(repo.name);
+      });
+
       repoList.appendChild(li);
     });
-  } catch (error) {
-    showToast('Erro ao listar repositórios: ' + error.message, 'error');
-  } finally {
-    hideLoading();
+  } catch (err) {
+    showToast(`Erro ao carregar repositórios: ${err.message}`, 'error');
   }
 }
 
-newRepoBtn.addEventListener('click', async () => {
-  const repoName = prompt('Digite o nome do novo repositório:');
-  if (!repoName) return;
-
-  showLoading('Criando e atualizando lista...');
+async function createRepository() {
+  const name = prompt('Nome do novo repositório:');
+  if (!name) return;
+  showLoading(true);
   try {
-    await github.createRepository(repoName, 'Criado via Web CMS');
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const repos = await github.getRepositories();
-      if (repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
-
+    await githubFetch('/user/repos', {
+      method: 'POST',
+      body: JSON.stringify({ name, auto_init: true })
+    });
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
-  } catch (error) {
-    showToast('Erro ao criar repositório: ' + error.message, 'error');
+  } catch (err) {
+    showToast(`Erro ao criar: ${err.message}`, 'error');
   } finally {
-    hideLoading();
+    showLoading(false);
   }
-});
+}
 
-async function confirmDeleteRepo(repoName) {
-  const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
-  if (confirmText !== repoName) {
-    showToast('Nome incorreto. Operação cancelada.', 'error');
-    return;
-  }
-
-  showLoading('Excluindo e atualizando...');
+async function deleteRepository(repoName) {
+  if (!confirm(`CUIDADO: Deseja realmente excluir o repositório "${repoName}"?`)) return;
+  showLoading(true);
   try {
-    await github.deleteRepository(currentUser.login, repoName);
-    let attempts = 0;
-    let removed = false;
-    while (attempts < 4 && !removed) {
-      await delay(1000);
-      const repos = await github.getRepositories();
-      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
-        removed = true;
-      }
-      attempts++;
-    }
-
+    await githubFetch(`/repos/${state.user.login}/${repoName}`, { method: 'DELETE' });
     showToast('Repositório excluído com sucesso!');
     await loadRepositories();
-  } catch (error) {
-    showToast('Erro ao excluir repositório: ' + error.message, 'error');
+  } catch (err) {
+    showToast(`Erro ao excluir: ${err.message}`, 'error');
   } finally {
-    hideLoading();
+    showLoading(false);
   }
 }
 
-async function selectRepo(repoName) {
-  currentRepo = repoName;
-  currentRepoTitle.textContent = `Repositório: ${repoName}`;
-
-  mainHeader.style.display = 'none';
-  dashboardSection.style.display = 'none';
-  editorSection.style.display = 'block';
-
-  if (monacoEditor && !isMobile) {
-    setTimeout(() => monacoEditor.layout(), 100);
-  }
-
-  currentFolderPath = '';
-  await loadFiles(currentFolderPath);
-}
-
-toggleDeleteModeBtn.addEventListener('click', () => {
-  isDeleteMode = !isDeleteMode;
-  toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
-  showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
+async function openRepository(repo) {
+  state.currentRepo = repo;
+  state.currentBranch = repo.default_branch || 'main';
+  state.currentPath = '';
+  document.getElementById('repo-title').textContent = `Repositório: ${repo.name}`;
   
-  const actionContainers = document.querySelectorAll('.tree-item-actions');
-  actionContainers.forEach(container => {
-    container.style.display = isDeleteMode ? 'flex' : 'none';
-  });
-});
+  if (state.editor) state.editor.setValue('// Selecione um arquivo para editar');
+  document.getElementById('mobile-editor').value = '';
+  
+  resetEditorActionsState();
+  showSection('editor-section');
+  await loadTree();
+}
 
-async function loadFiles(path = '') {
-  showLoading('Carregando arquivos...');
-  currentPathDisplay.textContent = path ? `/${path}` : '/';
-  fileTree.innerHTML = '';
-
+async function loadTree() {
+  showLoading(true);
   try {
-    const contents = await github.getContents(currentUser.login, currentRepo, path);
-    fileTree.innerHTML = '';
-
-    if (path !== '') {
-      const backLi = document.createElement('li');
-      backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
-      backLi.style.cursor = 'pointer';
-      backLi.addEventListener('click', async () => {
-        if (!checkUnsavedChanges()) return;
-        const pathParts = currentFolderPath.split('/');
-        pathParts.pop();
-        currentFolderPath = pathParts.join('/');
-        await loadFiles(currentFolderPath);
-      });
-      fileTree.appendChild(backLi);
+    const pathQuery = state.currentPath ? `?ref=${state.currentBranch}` : '';
+    const endpoint = `/repos/${state.user.login}/${state.currentRepo.name}/contents/${state.currentPath}${pathQuery}`;
+    const contents = await githubFetch(endpoint);
+    
+    state.files = Array.isArray(contents) ? contents : [contents];
+    
+    // Análise rápida de pastas para checar quais possuem arquivos internos
+    const folderStatus = {};
+    for (const item of state.files) {
+      if (item.type === 'dir') {
+        try {
+          const subContents = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`);
+          folderStatus[item.path] = Array.isArray(subContents) && subContents.length > 0;
+        } catch {
+          folderStatus[item.path] = false;
+        }
+      }
     }
 
-    contents.forEach(item => {
-      const li = document.createElement('li');
-      const icon = item.type === 'dir' ? '📁' : '📄';
+    renderTree(folderStatus);
+  } catch (err) {
+    showToast(`Erro ao carregar estrutura: ${err.message}`, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
 
-      li.innerHTML = `
-        <span class="item-name">${icon} ${item.name}</span>
-        <div class="tree-item-actions" style="display: ${isDeleteMode ? 'flex' : 'none'};">
-          <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir">✖</button>
-        </div>
-      `;
+function renderTree(folderStatus = {}) {
+  const fileTree = document.getElementById('file-tree');
+  fileTree.innerHTML = '';
+  document.getElementById('current-path-display').textContent = `/${state.currentPath}`;
 
-      const nameSpan = li.querySelector('.item-name');
-      const deleteBtn = li.querySelector('button');
+  if (state.currentPath !== '') {
+    const backLi = document.createElement('li');
+    backLi.innerHTML = `<strong>📁 .. (Voltar)</strong>`;
+    backLi.addEventListener('click', () => {
+      const parts = state.currentPath.split('/');
+      parts.pop();
+      state.currentPath = parts.join('/');
+      loadTree();
+    });
+    fileTree.appendChild(backLi);
+  }
 
-      if (item.type === 'dir') {
-        nameSpan.addEventListener('click', async () => {
-          if (!checkUnsavedChanges()) return;
-          currentFolderPath = item.path;
-          await loadFiles(currentFolderPath);
-        });
+  // REGRA DE PRIORIDADE: Separar Pastas e Arquivos
+  const folders = state.files.filter(item => item.type === 'dir');
+  const files = state.files.filter(item => item.type !== 'dir');
 
-        deleteBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          await deleteFolder(item.path, item.name);
-        });
+  // Ordenar cada grupo por nome (alfabética)
+  folders.sort((a, b) => a.name.localeCompare(b.name));
+  files.sort((a, b) => a.name.localeCompare(b.name));
 
-      } else if (item.type === 'file') {
-        nameSpan.addEventListener('click', () => {
-          if (!checkUnsavedChanges()) return;
-          openFile(item.path);
-        });
+  // Renderizar Pastas Primeiro
+  folders.forEach(item => {
+    const hasItems = folderStatus[item.path] || false;
+    const folderIcon = hasItems ? ICONS.folderFull : ICONS.folderEmpty;
 
-        deleteBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          await deleteFileByPath(item.path, item.sha);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        ${folderIcon}
+        <span>${item.name}</span>
+      </div>
+      ${state.isDeleteMode ? `<button class="danger-btn item-delete-btn">${ICONS.delete}</button>` : ''}
+    `;
+
+    li.addEventListener('click', (e) => {
+      if (e.target.closest('.item-delete-btn')) return;
+      state.currentPath = item.path;
+      loadTree();
+    });
+
+    if (state.isDeleteMode) {
+      const delBtn = li.querySelector('.item-delete-btn');
+      if (delBtn) delBtn.addEventListener('click', () => deleteItem(item));
+    }
+
+    fileTree.appendChild(li);
+  });
+
+  // Renderizar Arquivos Depois
+  files.forEach(item => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        ${ICONS.file}
+        <span>${item.name}</span>
+      </div>
+      ${state.isDeleteMode ? `<button class="danger-btn item-delete-btn">${ICONS.delete}</button>` : ''}
+    `;
+
+    li.addEventListener('click', (e) => {
+      if (e.target.closest('.item-delete-btn')) return;
+      openFile(item);
+    });
+
+    if (state.isDeleteMode) {
+      const delBtn = li.querySelector('.item-delete-btn');
+      if (delBtn) delBtn.addEventListener('click', () => deleteItem(item));
+    }
+
+    fileTree.appendChild(li);
+  });
+}
+
+function toggleDeleteMode() {
+  state.isDeleteMode = !state.isDeleteMode;
+  const toggleBtn = document.getElementById('toggle-delete-mode-btn');
+  if (state.isDeleteMode) {
+    toggleBtn.classList.add('delete-mode-active');
+  } else {
+    toggleBtn.classList.remove('delete-mode-active');
+  }
+  renderTree();
+}
+
+async function openFile(file) {
+  showLoading(true);
+  try {
+    const fileData = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${file.path}`);
+    state.selectedFile = fileData;
+    
+    // Decodificar Base64 UTF-8
+    const content = decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))));
+    
+    if (state.editor) {
+      const extension = file.name.split('.').pop().toLowerCase();
+      const langMap = { js: 'javascript', html: 'html', css: 'css', json: 'json', md: 'markdown', php: 'php', py: 'python' };
+      const model = monaco.editor.createModel(content, langMap[extension] || 'plaintext');
+      state.editor.setModel(model);
+    }
+    
+    document.getElementById('mobile-editor').value = content;
+    document.getElementById('current-file-name').textContent = file.name;
+    
+    const actionsGroup = document.getElementById('editor-actions-group');
+    actionsGroup.classList.remove('action-hidden');
+    actionsGroup.classList.add('action-visible');
+
+    setSaveButtonActive(false);
+  } catch (err) {
+    showToast(`Erro ao abrir arquivo: ${err.message}`, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function saveCurrentFile() {
+  if (!state.selectedFile) return;
+  
+  const isMobile = window.innerWidth <= 768;
+  const newContent = isMobile 
+    ? document.getElementById('mobile-editor').value 
+    : state.editor.getValue();
+
+  showLoading(true);
+  try {
+    // Encapsular UTF-8 para Base64
+    const encodedContent = btoa(unescape(encodeURIComponent(newContent)));
+    
+    const response = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${state.selectedFile.path}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `Atualizado via IDE: ${state.selectedFile.name}`,
+        content: encodedContent,
+        sha: state.selectedFile.sha,
+        branch: state.currentBranch
+      })
+    });
+
+    state.selectedFile.sha = response.content.sha;
+    setSaveButtonActive(false);
+    showToast('Arquivo salvo com sucesso!');
+  } catch (err) {
+    showToast(`Erro ao salvar: ${err.message}`, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function createNewFile() {
+  const fileName = prompt('Nome do novo arquivo (ex: index.html):');
+  if (!fileName) return;
+
+  const fullPath = state.currentPath ? `${state.currentPath}/${fileName}` : fileName;
+  showLoading(true);
+  try {
+    await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${fullPath}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `Criar arquivo: ${fileName}`,
+        content: '',
+        branch: state.currentBranch
+      })
+    });
+    showToast('Arquivo criado com sucesso!');
+    await loadTree();
+  } catch (err) {
+    showToast(`Erro ao criar arquivo: ${err.message}`, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function createNewFolder() {
+  const folderName = prompt('Nome da nova pasta:');
+  if (!folderName) return;
+
+  const fullPath = state.currentPath ? `${state.currentPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
+  showLoading(true);
+  try {
+    await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${fullPath}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `Criar pasta: ${folderName}`,
+        content: '',
+        branch: state.currentBranch
+      })
+    });
+    showToast('Pasta criada com sucesso!');
+    await loadTree();
+  } catch (err) {
+    showToast(`Erro ao criar pasta: ${err.message}`, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deleteItem(item) {
+  if (!confirm(`Confirma a exclusão de "${item.name}"?`)) return;
+  showLoading(true);
+  try {
+    if (item.type === 'dir') {
+      const contents = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`);
+      for (const subItem of contents) {
+        await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${subItem.path}`, {
+          method: 'DELETE',
+          body: JSON.stringify({
+            message: `Remover arquivo interno: ${subItem.name}`,
+            sha: subItem.sha,
+            branch: state.currentBranch
+          })
         });
       }
-
-      fileTree.appendChild(li);
-    });
-  } catch (error) {
-    fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
-    showToast('Erro ao carregar estrutura de arquivos.', 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-async function deleteFolder(folderPath, folderName) {
-  const confirmText = prompt(`Tem certeza que deseja excluir a pasta "${folderName}" e TODO o seu conteúdo? Digite "${folderName}" para confirmar:`);
-  if (confirmText !== folderName) {
-    showToast('Confirmação incorreta. Operação cancelada.', 'error');
-    return;
-  }
-
-  showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
-  try {
-    await github.deleteFolder(currentUser.login, currentRepo, folderPath);
-    showToast('Pasta excluída com sucesso!');
-    await loadFiles(currentFolderPath);
-  } catch (error) {
-    showToast('Erro ao excluir pasta: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-async function deleteFileByPath(filePath, sha) {
-  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
-  if (!confirmDelete) return;
-
-  showLoading('Excluindo arquivo...');
-  try {
-    await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
-    if (currentFile && currentFile.path === filePath) {
-      currentFile = null;
-      originalFileContent = '';
-      updateSaveButtonState(false);
-      if (isMobile) mobileEditor.value = '';
-      else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
-
-      setActionButtonVisibility(saveFileBtn, false);
-      setActionButtonVisibility(deleteFileBtn, false);
-      setActionButtonVisibility(expandBtn, false);
-      setActionButtonVisibility(previewBtn, false);
-      currentFileTitle.textContent = 'Nenhum arquivo selecionado';
-    }
-    showToast('Arquivo excluído com sucesso!');
-    await loadFiles(currentFolderPath);
-  } catch (error) {
-    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-async function openFile(filePath) {
-  showLoading('Abrindo arquivo...');
-
-  try {
-    const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
-    const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
-
-    currentFile = {
-      path: fileData.path,
-      sha: fileData.sha,
-      name: fileData.name
-    };
-
-    originalFileContent = decodedContent;
-    currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
-
-    if (isMobile) {
-      mobileEditor.value = decodedContent;
-    } else if (monacoEditor) {
-      monacoEditor.setValue(decodedContent);
-      const language = getLanguageFromFilename(fileData.name);
-      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
-      setTimeout(() => monacoEditor.layout(), 50);
-    }
-
-    updateSaveButtonState(false);
-
-    setActionButtonVisibility(saveFileBtn, true);
-    setActionButtonVisibility(deleteFileBtn, true);
-    setActionButtonVisibility(expandBtn, true);
-
-    if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
-      setActionButtonVisibility(previewBtn, true);
     } else {
-      setActionButtonVisibility(previewBtn, false);
+      await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`, {
+        method: 'DELETE',
+        body: JSON.stringify({
+          message: `Remover: ${item.name}`,
+          sha: item.sha,
+          branch: state.currentBranch
+        })
+      });
     }
-  } catch (error) {
-    showToast('Erro ao abrir arquivo: ' + error.message, 'error');
+
+    showToast('Item removido com sucesso!');
+    if (state.selectedFile && state.selectedFile.path === item.path) {
+      resetEditorActionsState();
+    }
+    await loadTree();
+  } catch (err) {
+    showToast(`Erro ao excluir: ${err.message}`, 'error');
   } finally {
-    hideLoading();
+    showLoading(false);
   }
 }
 
-saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile || !hasUnsavedChanges) return;
+function openPreview() {
+  const isMobile = window.innerWidth <= 768;
+  const content = isMobile 
+    ? document.getElementById('mobile-editor').value 
+    : state.editor.getValue();
 
-  showLoading('Salvando alterações no GitHub...');
-
-  try {
-    const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
-    const result = await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      currentFile.path,
-      newContent,
-      currentFile.sha
-    );
-
-    currentFile.sha = result.content.sha;
-    originalFileContent = newContent;
-    updateSaveButtonState(false);
-    showToast('Alterações salvas com sucesso!');
-  } catch (error) {
-    showToast('Erro ao salvar: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-});
-
-/* ALTERAÇÃO DOS ÍCONES COM SVG VETORIAL */
-expandBtn.addEventListener('click', () => {
-  isExpanded = !isExpanded;
-
-  if (isExpanded) {
-    codeEditorArea.classList.add('fullscreen-editor');
-    fileExplorer.style.display = 'none';
-    expandIcon.innerHTML = retractSVG;
-    expandText.textContent = 'Retrair';
-  } else {
-    codeEditorArea.classList.remove('fullscreen-editor');
-    fileExplorer.style.display = 'block';
-    expandIcon.innerHTML = expandSVG;
-    expandText.textContent = 'Expandir';
-  }
-
-  if (monacoEditor && !isMobile) {
-    setTimeout(() => monacoEditor.layout(), 50);
-  }
-});
-
-previewBtn.addEventListener('click', () => {
-  if (!currentFile) return;
-
-  const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
-  previewModal.style.display = 'flex';
-
-  const doc = previewFrame.contentWindow.document;
+  const iframe = document.getElementById('preview-frame');
+  const modal = document.getElementById('preview-modal');
+  
+  modal.style.display = 'flex';
+  const doc = iframe.contentWindow.document;
   doc.open();
   doc.write(content);
   doc.close();
-});
+}
 
-closePreviewBtn.addEventListener('click', () => {
-  previewModal.style.display = 'none';
-});
+function closePreview() {
+  document.getElementById('preview-modal').style.display = 'none';
+}
 
-newFileBtn.addEventListener('click', async () => {
-  if (!checkUnsavedChanges()) return;
+function toggleExpandEditor() {
+  const container = document.getElementById('code-editor-area');
+  const btn = document.getElementById('expand-editor-btn');
+  const isFullscreen = container.classList.toggle('fullscreen-editor');
 
-  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html):');
-  if (!filename) return;
-
-  const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
-
-  showLoading('Criando arquivo e atualizando...');
-  try {
-    await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      fullPath,
-      '',
-      null,
-      `Criado arquivo ${filename} via Web CMS`
-    );
-
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
-      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === filename.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
-
-    showToast('Arquivo criado com sucesso!');
-    await loadFiles(currentFolderPath);
-  } catch (error) {
-    showToast('Erro ao criar arquivo: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-});
-
-newFolderBtn.addEventListener('click', async () => {
-  if (!checkUnsavedChanges()) return;
-
-  const folderName = prompt('Digite o nome da nova pasta:');
-  if (!folderName) return;
-
-  const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
-
-  showLoading('Criando pasta...');
-  try {
-    await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      fullPath,
-      '',
-      null,
-      `Criada pasta ${folderName} via Web CMS`
-    );
-
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
-      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === folderName.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
-
-    showToast('Pasta criada com sucesso!');
-    await loadFiles(currentFolderPath);
-  } catch (error) {
-    showToast('Erro ao criar pasta: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
-});
-
-deleteFileBtn.addEventListener('click', async () => {
-  if (!currentFile) return;
-  await deleteFileByPath(currentFile.path, currentFile.sha);
-});
-
-backToReposBtn.addEventListener('click', async () => {
-  if (!checkUnsavedChanges()) return;
-
-  currentFile = null;
-  originalFileContent = '';
-  currentFolderPath = '';
-  updateSaveButtonState(false);
-
-  if (isExpanded) {
-    isExpanded = false;
-    codeEditorArea.classList.remove('fullscreen-editor');
-    fileExplorer.style.display = 'block';
-    expandIcon.innerHTML = expandSVG;
-    expandText.textContent = 'Expandir';
+  if (isFullscreen) {
+    btn.innerHTML = `${ICONS.shrink} Reduzir`;
+  } else {
+    btn.innerHTML = `${ICONS.expand} Expandir`;
   }
 
-  if (isMobile) mobileEditor.value = '';
-  else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
-
-  setActionButtonVisibility(saveFileBtn, false);
-  setActionButtonVisibility(deleteFileBtn, false);
-  setActionButtonVisibility(expandBtn, false);
-  setActionButtonVisibility(previewBtn, false);
-  currentFileTitle.textContent = 'Nenhum arquivo selecionado';
-  await loadRepositories();
-});
+  if (state.editor) {
+    setTimeout(() => state.editor.layout(), 100);
+  }
+}
