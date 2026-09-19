@@ -2,7 +2,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
 body {
@@ -61,8 +61,8 @@ button {
 }
 
 button:hover { background-color: #2c974b; }
-button.danger-btn { background-color: #cf222e; }
-button.danger-btn:hover { background-color: #a40e26; }
+button.danger-btn { background-color: #cf222e !important; }
+button.danger-btn:hover { background-color: #a40e26 !important; }
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
@@ -177,8 +177,8 @@ button.save-active {
   margin-top: 10px;
 }
 
-#repo-list li, #file-tree li {
-  padding: 10px;
+#repo-list li {
+  padding: 12px;
   border-bottom: 1px solid #eee;
   display: flex;
   justify-content: space-between;
@@ -186,12 +186,41 @@ button.save-active {
   gap: 10px;
 }
 
-#repo-list li .repo-name-link:hover {
-  text-decoration: underline;
+.repo-link {
+  color: #0969da;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-#file-tree li { cursor: pointer; }
+.repo-link:hover {
+  text-decoration: underline;
+  color: #0451a5;
+}
+
+#file-tree li {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
 #file-tree li:hover { background-color: #f0f3f6; }
+
+.tree-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
 
 .tree-item-actions {
   display: flex;
@@ -280,7 +309,7 @@ button.save-active {
   margin-top: 10px;
 }
 
-/* MODO FULLSCREEN (EXPANDIDO) CONTEXTUALIZADO POR DISPOSITIVO */
+/* MODO FULLSCREEN (EXPANDIDO) */
 .fullscreen-editor {
   position: fixed !important;
   top: 0 !important;
