@@ -53,6 +53,18 @@ button.danger-btn:hover { background-color: #a40e26; }
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
+/* Botão desabilitado/sem alterações */
+button:disabled, button.btn-disabled {
+  background-color: #8c959f !important;
+  color: #eaecf0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.7;
+}
+
+.dashboard-top-bar {
+  margin-bottom: 15px;
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -98,6 +110,11 @@ button.secondary-btn:hover { background-color: #0451a5; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.explorer-actions {
+  display: flex;
+  gap: 5px;
 }
 
 .path-display {
@@ -146,7 +163,7 @@ button.secondary-btn:hover { background-color: #0451a5; }
   resize: vertical;
 }
 
-/* === MODO TELA CHEIA / EXPANDIDO === */
+/* Modo Tela Cheia */
 .fullscreen-editor {
   position: fixed !important;
   top: 0 !important;
@@ -168,7 +185,7 @@ button.secondary-btn:hover { background-color: #0451a5; }
   height: calc(100vh - 90px) !important;
 }
 
-/* === MODAL DE PREVIEW === */
+/* Modal de Preview */
 #preview-modal {
   position: fixed;
   top: 0;
@@ -209,7 +226,7 @@ button.secondary-btn:hover { background-color: #0451a5; }
   background: #fff;
 }
 
-/* === LOADING & TOAST === */
+/* Loading & Toast */
 #loading-overlay {
   position: fixed;
   top: 0;
@@ -265,7 +282,6 @@ button.secondary-btn:hover { background-color: #0451a5; }
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* === RESPONSIVIDADE MOBILE === */
 @media (max-width: 768px) {
   .workspace { flex-direction: column; }
   .file-explorer, .code-editor-area {
