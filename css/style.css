@@ -139,7 +139,7 @@ button.secondary-btn:hover { background-color: #0451a5; }
 }
 
 button.delete-mode-active {
-  background-color: #a40e26 !important;
+  background-color: #cf222e !important;
   box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.4);
 }
 
@@ -184,6 +184,10 @@ button.save-active {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+}
+
+#repo-list li .repo-name-link:hover {
+  text-decoration: underline;
 }
 
 #file-tree li { cursor: pointer; }
