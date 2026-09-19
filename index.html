@@ -44,11 +44,10 @@
     <section id="dashboard-section" style="display: none;">
       <div class="dashboard-header">
         <h2>Meus Repositórios</h2>
-        <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
-      </div>
-      
-      <div class="dashboard-actions">
-        <button id="new-repo-btn">+ Novo Repositório</button>
+        <div class="dashboard-actions">
+          <button id="new-repo-btn">+ Novo Repositório</button>
+          <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
+        </div>
       </div>
 
       <ul id="repo-list"></ul>
@@ -56,8 +55,10 @@
 
     <!-- Painel do Editor de Arquivos -->
     <section id="editor-section" style="display: none;">
-      <button id="back-to-repos-btn">← Voltar aos Repositórios</button>
-      <h2 id="current-repo-title"></h2>
+      <div class="editor-top-bar">
+        <h2 id="current-repo-title"></h2>
+        <button id="back-to-repos-btn">← Voltar aos Repositórios</button>
+      </div>
 
       <div class="workspace">
         <!-- Navegador de Arquivos -->
