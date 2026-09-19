@@ -30,7 +30,7 @@
 
   <div id="app">
     <!-- Cabeçalho Principal Global -->
-    <header class="app-header">
+    <header class="app-header" id="main-header">
       <h1>Web CMS / IDE</h1>
       <button id="logout-btn" class="danger-btn" style="display: none;">Desconectar / Trocar Token</button>
     </header>
@@ -67,8 +67,8 @@
           <div class="explorer-header">
             <h3>Arquivos</h3>
             <div class="explorer-actions">
-              <!-- Botão para alternar Modo de Exclusão -->
-              <button id="toggle-delete-mode-btn" class="danger-btn" title="Modo de Exclusão">🗑️</button>
+              <!-- Botão do Modo de Exclusão com o sinal de menos -->
+              <button id="toggle-delete-mode-btn" class="danger-btn" title="Modo de Exclusão">🗑️-</button>
               <button id="new-folder-btn" title="Nova Pasta">📁+</button>
               <button id="new-file-btn" title="Novo Arquivo">📄+</button>
             </div>
