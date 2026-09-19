@@ -7,13 +7,14 @@ let hasUnsavedChanges = false;
 let currentFolderPath = '';
 let monacoEditor = null;
 let isExpanded = false;
-let isDeleteMode = false; // Estado do Modo de Exclusão
+let isDeleteMode = false;
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
 const authStatus = document.getElementById('auth-status');
 
+const mainHeader = document.getElementById('main-header');
 const loginSection = document.getElementById('login-section');
 const dashboardSection = document.getElementById('dashboard-section');
 const editorSection = document.getElementById('editor-section');
@@ -188,6 +189,7 @@ async function loadRepositories() {
   repoList.innerHTML = '';
   try {
     const repos = await github.getRepositories();
+    mainHeader.style.display = 'flex'; // Exibe o cabeçalho no Dashboard
     loginSection.style.display = 'none';
     editorSection.style.display = 'none';
     dashboardSection.style.display = 'block';
@@ -272,6 +274,7 @@ async function selectRepo(repoName) {
   currentRepo = repoName;
   currentRepoTitle.textContent = `Repositório: ${repoName}`;
 
+  mainHeader.style.display = 'none'; // Oculta o cabeçalho ao abrir um repositório
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
@@ -283,13 +286,11 @@ async function selectRepo(repoName) {
   await loadFiles(currentFolderPath);
 }
 
-// Alternar visualização do modo de exclusão
 toggleDeleteModeBtn.addEventListener('click', () => {
   isDeleteMode = !isDeleteMode;
   toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
   showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
   
-  // Atualiza a exibição dos botões de exclusão na árvore atual
   const actionContainers = document.querySelectorAll('.tree-item-actions');
   actionContainers.forEach(container => {
     container.style.display = isDeleteMode ? 'flex' : 'none';
