@@ -42,11 +42,13 @@
 
     <!-- Painel de Repositórios -->
     <section id="dashboard-section" style="display: none;">
+      <div class="dashboard-top-bar">
+        <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
+      </div>
       <div class="dashboard-header">
         <h2>Meus Repositórios</h2>
         <button id="new-repo-btn">+ Novo Repositório</button>
       </div>
-      <button id="logout-btn" class="danger-btn" style="margin-top: 10px;">Desconectar / Trocar Token</button>
       <ul id="repo-list"></ul>
     </section>
 
@@ -60,7 +62,10 @@
         <div class="file-explorer" id="file-explorer">
           <div class="explorer-header">
             <h3>Arquivos</h3>
-            <button id="new-file-btn" title="Novo Arquivo">+</button>
+            <div class="explorer-actions">
+              <button id="new-folder-btn" title="Nova Pasta">📁+</button>
+              <button id="new-file-btn" title="Novo Arquivo">📄+</button>
+            </div>
           </div>
           <p id="current-path-display" class="path-display">/</p>
           <ul id="file-tree"></ul>
@@ -73,7 +78,7 @@
             <div class="editor-actions">
               <button id="preview-btn" class="secondary-btn" style="display: none;">👁️ Preview</button>
               <button id="expand-btn" class="secondary-btn" style="display: none;">⛶ Expandir</button>
-              <button id="save-file-btn" style="display: none;">Salvar</button>
+              <button id="save-file-btn" class="btn-disabled" disabled style="display: none;">Salvar</button>
               <button id="delete-file-btn" class="danger-btn" style="display: none;">Excluir</button>
             </div>
           </div>
