@@ -305,16 +305,30 @@ async function loadFiles(path = '') {
     contents.forEach(item => {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
-      li.textContent = `${icon} ${item.name}`;
-      li.style.cursor = 'pointer';
 
       if (item.type === 'dir') {
-        li.addEventListener('click', async () => {
+        li.innerHTML = `
+          <span>${icon} ${item.name}</span>
+          <div class="tree-item-actions">
+            <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir pasta">✖</button>
+          </div>
+        `;
+
+        const nameSpan = li.querySelector('span');
+        nameSpan.addEventListener('click', async () => {
           if (!checkUnsavedChanges()) return;
           currentFolderPath = item.path;
           await loadFiles(currentFolderPath);
         });
+
+        const deleteBtn = li.querySelector('button');
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFolder(item.path, item.name);
+        });
+
       } else if (item.type === 'file') {
+        li.textContent = `${icon} ${item.name}`;
         li.addEventListener('click', () => {
           if (!checkUnsavedChanges()) return;
           openFile(item.path);
@@ -326,6 +340,25 @@ async function loadFiles(path = '') {
   } catch (error) {
     fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
     showToast('Erro ao carregar estrutura de arquivos.', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deleteFolder(folderPath, folderName) {
+  const confirmText = prompt(`Tem certeza que deseja excluir a pasta "${folderName}" e TODO o seu conteúdo? Digite "${folderName}" para confirmar:`);
+  if (confirmText !== folderName) {
+    showToast('Confirmação incorreta. Operação cancelada.', 'error');
+    return;
+  }
+
+  showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
+  try {
+    await github.deleteFolder(currentUser.login, currentRepo, folderPath);
+    showToast('Pasta excluída com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao excluir pasta: ' + error.message, 'error');
   } finally {
     hideLoading();
   }
@@ -400,7 +433,6 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Botão Expandir / Retrair Editor
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
@@ -419,7 +451,6 @@ expandBtn.addEventListener('click', () => {
   }
 });
 
-// Botão Preview ao Vivo
 previewBtn.addEventListener('click', () => {
   if (!currentFile) return;
 
@@ -436,7 +467,6 @@ closePreviewBtn.addEventListener('click', () => {
   previewModal.style.display = 'none';
 });
 
-// Criar Novo Arquivo
 newFileBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
@@ -476,14 +506,12 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Criar Nova Pasta
 newFolderBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
   const folderName = prompt('Digite o nome da nova pasta:');
   if (!folderName) return;
 
-  // Como o Git não rastreia pastas vazias, criamos um arquivo .gitkeep dentro da nova pasta
   const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
 
   showLoading('Criando pasta...');
