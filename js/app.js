@@ -7,6 +7,7 @@ let hasUnsavedChanges = false;
 let currentFolderPath = '';
 let monacoEditor = null;
 let isExpanded = false;
+let isDeleteMode = false; // Estado do Modo de Exclusão
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
@@ -26,6 +27,7 @@ const saveFileBtn = document.getElementById('save-file-btn');
 const deleteFileBtn = document.getElementById('delete-file-btn');
 const newFileBtn = document.getElementById('new-file-btn');
 const newFolderBtn = document.getElementById('new-folder-btn');
+const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const backToReposBtn = document.getElementById('back-to-repos-btn');
@@ -141,6 +143,7 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
+    logoutBtn.style.display = 'inline-block';
     await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
@@ -164,6 +167,7 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
+    logoutBtn.style.display = 'inline-block';
     await loadRepositories();
     showToast('Conectado com sucesso!');
   } catch (error) {
@@ -279,6 +283,19 @@ async function selectRepo(repoName) {
   await loadFiles(currentFolderPath);
 }
 
+// Alternar visualização do modo de exclusão
+toggleDeleteModeBtn.addEventListener('click', () => {
+  isDeleteMode = !isDeleteMode;
+  toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
+  showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
+  
+  // Atualiza a exibição dos botões de exclusão na árvore atual
+  const actionContainers = document.querySelectorAll('.tree-item-actions');
+  actionContainers.forEach(container => {
+    container.style.display = isDeleteMode ? 'flex' : 'none';
+  });
+});
+
 async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
@@ -306,32 +323,37 @@ async function loadFiles(path = '') {
       const li = document.createElement('li');
       const icon = item.type === 'dir' ? '📁' : '📄';
 
-      if (item.type === 'dir') {
-        li.innerHTML = `
-          <span>${icon} ${item.name}</span>
-          <div class="tree-item-actions">
-            <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir pasta">✖</button>
-          </div>
-        `;
+      li.innerHTML = `
+        <span class="item-name">${icon} ${item.name}</span>
+        <div class="tree-item-actions" style="display: ${isDeleteMode ? 'flex' : 'none'};">
+          <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir">✖</button>
+        </div>
+      `;
 
-        const nameSpan = li.querySelector('span');
+      const nameSpan = li.querySelector('.item-name');
+      const deleteBtn = li.querySelector('button');
+
+      if (item.type === 'dir') {
         nameSpan.addEventListener('click', async () => {
           if (!checkUnsavedChanges()) return;
           currentFolderPath = item.path;
           await loadFiles(currentFolderPath);
         });
 
-        const deleteBtn = li.querySelector('button');
         deleteBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
           await deleteFolder(item.path, item.name);
         });
 
       } else if (item.type === 'file') {
-        li.textContent = `${icon} ${item.name}`;
-        li.addEventListener('click', () => {
+        nameSpan.addEventListener('click', () => {
           if (!checkUnsavedChanges()) return;
           openFile(item.path);
+        });
+
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFileByPath(item.path, item.sha);
         });
       }
 
@@ -359,6 +381,35 @@ async function deleteFolder(folderPath, folderName) {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deleteFileByPath(filePath, sha) {
+  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
+  if (!confirmDelete) return;
+
+  showLoading('Excluindo arquivo...');
+  try {
+    await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
+    if (currentFile && currentFile.path === filePath) {
+      currentFile = null;
+      originalFileContent = '';
+      updateSaveButtonState(false);
+      if (isMobile) mobileEditor.value = '';
+      else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+
+      saveFileBtn.style.display = 'none';
+      deleteFileBtn.style.display = 'none';
+      expandBtn.style.display = 'none';
+      previewBtn.style.display = 'none';
+      currentFileTitle.textContent = 'Nenhum arquivo selecionado';
+    }
+    showToast('Arquivo excluído com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
   } finally {
     hideLoading();
   }
@@ -547,50 +598,7 @@ newFolderBtn.addEventListener('click', async () => {
 
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
-
-  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${currentFile.path}"?`);
-  if (!confirmDelete) return;
-
-  showLoading('Excluindo arquivo e atualizando...');
-  try {
-    await github.deleteFile(
-      currentUser.login,
-      currentRepo,
-      currentFile.path,
-      currentFile.sha
-    );
-
-    currentFile = null;
-    originalFileContent = '';
-    updateSaveButtonState(false);
-
-    if (isMobile) mobileEditor.value = '';
-    else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
-
-    saveFileBtn.style.display = 'none';
-    deleteFileBtn.style.display = 'none';
-    expandBtn.style.display = 'none';
-    previewBtn.style.display = 'none';
-    currentFileTitle.textContent = 'Nenhum arquivo selecionado';
-
-    let attempts = 0;
-    let removed = false;
-    while (attempts < 4 && !removed) {
-      await delay(1000);
-      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
-      if (Array.isArray(contents) && !contents.some(c => c.path === currentFile?.path)) {
-        removed = true;
-      }
-      attempts++;
-    }
-
-    showToast('Arquivo excluído com sucesso!');
-    await loadFiles(currentFolderPath);
-  } catch (error) {
-    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
-  } finally {
-    hideLoading();
-  }
+  await deleteFileByPath(currentFile.path, currentFile.sha);
 });
 
 backToReposBtn.addEventListener('click', async () => {
