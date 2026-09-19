@@ -42,13 +42,15 @@
 
     <!-- Painel de Repositórios -->
     <section id="dashboard-section" style="display: none;">
-      <div class="dashboard-top-bar">
-        <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
-      </div>
       <div class="dashboard-header">
         <h2>Meus Repositórios</h2>
+        <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
+      </div>
+      
+      <div class="dashboard-actions">
         <button id="new-repo-btn">+ Novo Repositório</button>
       </div>
+
       <ul id="repo-list"></ul>
     </section>
 
@@ -77,8 +79,8 @@
             <h3 id="current-file-title">Nenhum arquivo selecionado</h3>
             <div class="editor-actions">
               <button id="preview-btn" class="secondary-btn" style="display: none;">👁️ Preview</button>
-              <button id="expand-btn" class="secondary-btn" style="display: none;">⛶ Expandir</button>
-              <button id="save-file-btn" class="btn-disabled" disabled style="display: none;">Salvar</button>
+              <button id="expand-btn" class="secondary-btn" style="display: none;">Expandir</button>
+              <button id="save-file-btn" class="save-disabled" disabled style="display: none;">Salvar</button>
               <button id="delete-file-btn" class="danger-btn" style="display: none;">Excluir</button>
             </div>
           </div>
