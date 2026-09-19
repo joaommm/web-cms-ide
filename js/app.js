@@ -71,6 +71,16 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
+function setActionButtonVisibility(button, visible) {
+  if (visible) {
+    button.classList.remove('action-hidden');
+    button.classList.add('action-visible');
+  } else {
+    button.classList.remove('action-visible');
+    button.classList.add('action-hidden');
+  }
+}
+
 function updateSaveButtonState(modified) {
   hasUnsavedChanges = modified;
   if (modified) {
@@ -189,7 +199,7 @@ async function loadRepositories() {
   repoList.innerHTML = '';
   try {
     const repos = await github.getRepositories();
-    mainHeader.style.display = 'flex'; // Exibe o cabeçalho no Dashboard
+    mainHeader.style.display = 'flex';
     loginSection.style.display = 'none';
     editorSection.style.display = 'none';
     dashboardSection.style.display = 'block';
@@ -274,7 +284,7 @@ async function selectRepo(repoName) {
   currentRepo = repoName;
   currentRepoTitle.textContent = `Repositório: ${repoName}`;
 
-  mainHeader.style.display = 'none'; // Oculta o cabeçalho ao abrir um repositório
+  mainHeader.style.display = 'none';
   dashboardSection.style.display = 'none';
   editorSection.style.display = 'block';
 
@@ -401,10 +411,10 @@ async function deleteFileByPath(filePath, sha) {
       if (isMobile) mobileEditor.value = '';
       else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
 
-      saveFileBtn.style.display = 'none';
-      deleteFileBtn.style.display = 'none';
-      expandBtn.style.display = 'none';
-      previewBtn.style.display = 'none';
+      setActionButtonVisibility(saveFileBtn, false);
+      setActionButtonVisibility(deleteFileBtn, false);
+      setActionButtonVisibility(expandBtn, false);
+      setActionButtonVisibility(previewBtn, false);
       currentFileTitle.textContent = 'Nenhum arquivo selecionado';
     }
     showToast('Arquivo excluído com sucesso!');
@@ -443,14 +453,14 @@ async function openFile(filePath) {
 
     updateSaveButtonState(false);
 
-    saveFileBtn.style.display = 'inline-block';
-    deleteFileBtn.style.display = 'inline-block';
-    expandBtn.style.display = 'inline-block';
+    setActionButtonVisibility(saveFileBtn, true);
+    setActionButtonVisibility(deleteFileBtn, true);
+    setActionButtonVisibility(expandBtn, true);
 
     if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
-      previewBtn.style.display = 'inline-block';
+      setActionButtonVisibility(previewBtn, true);
     } else {
-      previewBtn.style.display = 'none';
+      setActionButtonVisibility(previewBtn, false);
     }
   } catch (error) {
     showToast('Erro ao abrir arquivo: ' + error.message, 'error');
@@ -491,15 +501,15 @@ expandBtn.addEventListener('click', () => {
   if (isExpanded) {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
-    expandBtn.textContent = 'Retrair';
+    expandBtn.textContent = '⤓ Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = 'Expandir';
+    expandBtn.textContent = '⤢ Expandir';
   }
 
   if (monacoEditor && !isMobile) {
-    setTimeout(() => monacoEditor.layout(), 100);
+    setTimeout(() => monacoEditor.layout(), 50);
   }
 });
 
@@ -614,16 +624,16 @@ backToReposBtn.addEventListener('click', async () => {
     isExpanded = false;
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = 'Expandir';
+    expandBtn.textContent = '⤢ Expandir';
   }
 
   if (isMobile) mobileEditor.value = '';
   else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
 
-  saveFileBtn.style.display = 'none';
-  deleteFileBtn.style.display = 'none';
-  expandBtn.style.display = 'none';
-  previewBtn.style.display = 'none';
+  setActionButtonVisibility(saveFileBtn, false);
+  setActionButtonVisibility(deleteFileBtn, false);
+  setActionButtonVisibility(expandBtn, false);
+  setActionButtonVisibility(previewBtn, false);
   currentFileTitle.textContent = 'Nenhum arquivo selecionado';
   await loadRepositories();
 });
