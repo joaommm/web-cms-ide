@@ -1,45 +1,21 @@
-// Estado da Aplicação
-const state = {
-  token: '',
-  user: null,
-  currentRepo: null,
-  currentBranch: 'main',
-  currentPath: '',
-  files: [],
-  selectedFile: null,
-  editor: null,
-  isDeleteMode: false,
-  fileToDelete: null
-};
+let monacoEditor = null;
+let currentRepoOwner = '';
+let currentRepoName = '';
+let currentFilePath = '';
+let currentFileSha = '';
+let currentTreeData = [];
+let isDeleteMode = false;
+let originalFileContent = '';
 
 // SVG Icons
-const ICONS = {
-  power: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>`,
-  preview: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
-  expand: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`,
-  shrink: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="10" y1="14" x2="3" y2="21"></line></svg>`,
-  delete: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
-  save: `<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`,
-  folderEmpty: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e3a008" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
-  folderFull: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="#e3a008"/><path d="M19 13h-6v6h6v-6z" fill="#ffffff" opacity="0.4"/></svg>`,
-  file: `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`
-};
+const ICON_CLOSE_X = `<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+const ICON_EXPAND = `<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
+const ICON_COMPRESS = `<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="10" y1="14" x2="3" y2="21"></line></svg>`;
+const ICON_FOLDER_EMPTY = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="#E8EAED" stroke="#5F6368" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+const ICON_FOLDER_FULL = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="#FFE082" stroke="#F57F17" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11h6m-6 3h4" stroke="#D78000" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_FILE = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`;
+const ICON_REPO = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0969da" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`;
 
-// Utilitários de UI
-function showLoading(show = true) {
-  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
-}
-
-function showToast(message, type = 'success') {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
-
-// Inicialização
 document.addEventListener('DOMContentLoaded', () => {
   initMonaco();
   checkAuth();
@@ -47,36 +23,94 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initMonaco() {
-  require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs' }});
-  require(['vs/editor/editor.main'], function() {
-    state.editor = monaco.editor.create(document.getElementById('monaco-container'), {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
+  require(['vs/editor/editor.main'], () => {
+    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
       value: '// Selecione um arquivo para editar',
-      language: 'plaintext',
-      theme: 'vs-light',
+      language: 'javascript',
+      theme: 'vs-dark',
       automaticLayout: true
     });
 
-    state.editor.onDidChangeModelContent(() => {
-      const isMobile = window.innerWidth <= 768;
-      if (!isMobile && state.selectedFile) {
-        setSaveButtonActive(true);
-      }
+    monacoEditor.onDidChangeModelContent(() => {
+      checkContentChange();
     });
   });
 
   const mobileEditor = document.getElementById('mobile-editor');
-  mobileEditor.addEventListener('input', () => {
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile && state.selectedFile) {
-      setSaveButtonActive(true);
-    }
-  });
+  if (mobileEditor) {
+    mobileEditor.addEventListener('input', () => {
+      checkContentChange();
+    });
+  }
 }
 
-function setSaveButtonActive(active) {
+function showLoading(msg = 'Carregando...') {
+  document.getElementById('loading-text').innerText = msg;
+  document.getElementById('loading-overlay').style.display = 'flex';
+}
+
+function hideLoading() {
+  document.getElementById('loading-overlay').style.display = 'none';
+}
+
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerText = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+  }, 3500);
+}
+
+function checkAuth() {
+  const token = localStorage.getItem('gh_token');
+  if (token) {
+    showSection('dashboard-section');
+    loadRepositories();
+  } else {
+    showSection('auth-section');
+  }
+}
+
+function showSection(sectionId) {
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('dashboard-section').style.display = 'none';
+  document.getElementById('editor-section').style.display = 'none';
+
+  document.getElementById(sectionId).style.display = 'block';
+
+  const powerBtnWrapper = document.getElementById('logout-wrapper');
+  if (sectionId === 'auth-section') {
+    powerBtnWrapper.style.display = 'none';
+  } else {
+    powerBtnWrapper.style.display = 'flex';
+  }
+}
+
+function getActiveEditorContent() {
+  if (window.innerWidth <= 768) {
+    return document.getElementById('mobile-editor').value;
+  } else {
+    return monacoEditor ? monacoEditor.getValue() : '';
+  }
+}
+
+function setActiveEditorContent(content) {
+  if (monacoEditor) {
+    monacoEditor.setValue(content);
+  }
+  document.getElementById('mobile-editor').value = content;
+  originalFileContent = content;
+  checkContentChange();
+}
+
+function checkContentChange() {
+  const currentContent = getActiveEditorContent();
   const saveBtn = document.getElementById('save-file-btn');
-  if (!saveBtn) return;
-  if (active) {
+  if (currentContent !== originalFileContent) {
     saveBtn.classList.remove('save-disabled');
     saveBtn.classList.add('save-active');
   } else {
@@ -85,506 +119,512 @@ function setSaveButtonActive(active) {
   }
 }
 
-function checkAuth() {
-  const savedToken = localStorage.getItem('github_token');
-  if (savedToken) {
-    state.token = savedToken;
-    validateTokenAndLoad();
-  } else {
-    showSection('auth-section');
-  }
-}
-
 function setupEventListeners() {
   document.getElementById('save-token-btn').addEventListener('click', () => {
-    const tokenInput = document.getElementById('token-input').value.trim();
-    if (!tokenInput) return showToast('Digite um token válido', 'error');
-    state.token = tokenInput;
-    localStorage.setItem('github_token', tokenInput);
-    validateTokenAndLoad();
+    const token = document.getElementById('github-token').value.trim();
+    if (!token) return showToast('Digite um token válido', 'error');
+    localStorage.setItem('gh_token', token);
+    showToast('Token salvo com sucesso!');
+    checkAuth();
   });
 
-  const powerBtn = document.getElementById('power-toggle-btn');
-  const logoutPopover = document.getElementById('logout-popover');
-
+  const powerBtn = document.getElementById('power-btn');
+  const popover = document.getElementById('logout-popover');
+  
   powerBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = logoutPopover.classList.contains('logout-popover-hidden');
-    if (isHidden) {
-      logoutPopover.classList.remove('logout-popover-hidden');
-      logoutPopover.classList.add('logout-popover-visible');
+    if (popover.classList.contains('logout-popover-hidden')) {
+      popover.classList.remove('logout-popover-hidden');
+      popover.classList.add('logout-popover-visible');
     } else {
-      logoutPopover.classList.remove('logout-popover-visible');
-      logoutPopover.classList.add('logout-popover-hidden');
+      popover.classList.remove('logout-popover-visible');
+      popover.classList.add('logout-popover-hidden');
     }
   });
 
   document.addEventListener('click', (e) => {
-    if (!document.getElementById('logout-wrapper').contains(e.target)) {
-      logoutPopover.classList.remove('logout-popover-visible');
-      logoutPopover.classList.add('logout-popover-hidden');
+    if (!popover.contains(e.target) && e.target !== powerBtn) {
+      popover.classList.remove('logout-popover-visible');
+      popover.classList.add('logout-popover-hidden');
     }
   });
 
   document.getElementById('logout-btn').addEventListener('click', () => {
-    localStorage.removeItem('github_token');
-    state.token = '';
-    state.user = null;
-    logoutPopover.classList.remove('logout-popover-visible');
-    logoutPopover.classList.add('logout-popover-hidden');
-    showSection('auth-section');
-    showToast('Desconectado com sucesso!');
+    localStorage.removeItem('gh_token');
+    popover.classList.remove('logout-popover-visible');
+    popover.classList.add('logout-popover-hidden');
+    showToast('Desconectado com sucesso');
+    checkAuth();
   });
 
   document.getElementById('back-to-repos-btn').addEventListener('click', () => {
-    state.currentRepo = null;
-    state.currentPath = '';
-    state.selectedFile = null;
-    resetEditorActionsState();
     showSection('dashboard-section');
+    loadRepositories();
   });
 
-  document.getElementById('create-repo-btn').addEventListener('click', createRepository);
-  document.getElementById('new-file-btn').addEventListener('click', createNewFile);
-  document.getElementById('new-folder-btn').addEventListener('click', createNewFolder);
+  document.getElementById('new-file-btn').addEventListener('click', handleCreateFile);
+  document.getElementById('new-folder-btn').addEventListener('click', handleCreateFolder);
   
   const toggleDeleteBtn = document.getElementById('toggle-delete-mode-btn');
-  toggleDeleteBtn.addEventListener('click', toggleDeleteMode);
-
-  document.getElementById('save-file-btn').addEventListener('click', saveCurrentFile);
-  document.getElementById('preview-btn').addEventListener('click', openPreview);
-  document.getElementById('close-preview-btn').addEventListener('click', closePreview);
-  document.getElementById('expand-editor-btn').addEventListener('click', toggleExpandEditor);
-}
-
-function showSection(sectionId) {
-  document.getElementById('auth-section').style.display = 'none';
-  document.getElementById('dashboard-section').style.display = 'none';
-  document.getElementById('editor-section').style.display = 'none';
-  document.getElementById(sectionId).style.display = 'block';
-}
-
-function resetEditorActionsState() {
-  state.selectedFile = null;
-  const actionsGroup = document.getElementById('editor-actions-group');
-  const filenameLabel = document.getElementById('current-file-name');
-  
-  if (actionsGroup) {
-    actionsGroup.classList.remove('action-visible');
-    actionsGroup.classList.add('action-hidden');
-  }
-  if (filenameLabel) filenameLabel.textContent = 'Nenhum arquivo selecionado';
-  setSaveButtonActive(false);
-}
-
-// GitHub API Integration
-async function githubFetch(endpoint, options = {}) {
-  const headers = {
-    'Authorization': `token ${state.token}`,
-    'Accept': 'application/vnd.github.v3+json',
-    ...options.headers
-  };
-  const response = await fetch(`https://api.github.com${endpoint}`, { ...options, headers });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
-  }
-  return response.json();
-}
-
-async function validateTokenAndLoad() {
-  showLoading(true);
-  try {
-    state.user = await githubFetch('/user');
-    document.getElementById('user-info').textContent = `Conectado como: ${state.user.login}`;
-    await loadRepositories();
-    showSection('dashboard-section');
-  } catch (err) {
-    showToast('Token inválido ou expirado', 'error');
-    localStorage.removeItem('github_token');
-    showSection('auth-section');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function loadRepositories() {
-  try {
-    const repos = await githubFetch('/user/repos?sort=updated&per_page=100');
-    const repoList = document.getElementById('repo-list');
-    repoList.innerHTML = '';
-
-    repos.forEach(repo => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <span class="repo-name-link" style="color: #0969da; font-weight: bold; cursor: pointer;">${repo.name}</span>
-        <button class="danger-btn delete-repo-btn" title="Excluir Repositório">${ICONS.delete}</button>
-      `;
-
-      // Clique no nome para abrir
-      li.querySelector('.repo-name-link').addEventListener('click', () => openRepository(repo));
-      
-      // Clique no "X" / Lixeira para excluir
-      li.querySelector('.delete-repo-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        deleteRepository(repo.name);
-      });
-
-      repoList.appendChild(li);
-    });
-  } catch (err) {
-    showToast(`Erro ao carregar repositórios: ${err.message}`, 'error');
-  }
-}
-
-async function createRepository() {
-  const name = prompt('Nome do novo repositório:');
-  if (!name) return;
-  showLoading(true);
-  try {
-    await githubFetch('/user/repos', {
-      method: 'POST',
-      body: JSON.stringify({ name, auto_init: true })
-    });
-    showToast('Repositório criado com sucesso!');
-    await loadRepositories();
-  } catch (err) {
-    showToast(`Erro ao criar: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function deleteRepository(repoName) {
-  if (!confirm(`CUIDADO: Deseja realmente excluir o repositório "${repoName}"?`)) return;
-  showLoading(true);
-  try {
-    await githubFetch(`/repos/${state.user.login}/${repoName}`, { method: 'DELETE' });
-    showToast('Repositório excluído com sucesso!');
-    await loadRepositories();
-  } catch (err) {
-    showToast(`Erro ao excluir: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function openRepository(repo) {
-  state.currentRepo = repo;
-  state.currentBranch = repo.default_branch || 'main';
-  state.currentPath = '';
-  document.getElementById('repo-title').textContent = `Repositório: ${repo.name}`;
-  
-  if (state.editor) state.editor.setValue('// Selecione um arquivo para editar');
-  document.getElementById('mobile-editor').value = '';
-  
-  resetEditorActionsState();
-  showSection('editor-section');
-  await loadTree();
-}
-
-async function loadTree() {
-  showLoading(true);
-  try {
-    const pathQuery = state.currentPath ? `?ref=${state.currentBranch}` : '';
-    const endpoint = `/repos/${state.user.login}/${state.currentRepo.name}/contents/${state.currentPath}${pathQuery}`;
-    const contents = await githubFetch(endpoint);
-    
-    state.files = Array.isArray(contents) ? contents : [contents];
-    
-    // Análise rápida de pastas para checar quais possuem arquivos internos
-    const folderStatus = {};
-    for (const item of state.files) {
-      if (item.type === 'dir') {
-        try {
-          const subContents = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`);
-          folderStatus[item.path] = Array.isArray(subContents) && subContents.length > 0;
-        } catch {
-          folderStatus[item.path] = false;
-        }
-      }
-    }
-
-    renderTree(folderStatus);
-  } catch (err) {
-    showToast(`Erro ao carregar estrutura: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-function renderTree(folderStatus = {}) {
-  const fileTree = document.getElementById('file-tree');
-  fileTree.innerHTML = '';
-  document.getElementById('current-path-display').textContent = `/${state.currentPath}`;
-
-  if (state.currentPath !== '') {
-    const backLi = document.createElement('li');
-    backLi.innerHTML = `<strong>📁 .. (Voltar)</strong>`;
-    backLi.addEventListener('click', () => {
-      const parts = state.currentPath.split('/');
-      parts.pop();
-      state.currentPath = parts.join('/');
-      loadTree();
-    });
-    fileTree.appendChild(backLi);
-  }
-
-  // REGRA DE PRIORIDADE: Separar Pastas e Arquivos
-  const folders = state.files.filter(item => item.type === 'dir');
-  const files = state.files.filter(item => item.type !== 'dir');
-
-  // Ordenar cada grupo por nome (alfabética)
-  folders.sort((a, b) => a.name.localeCompare(b.name));
-  files.sort((a, b) => a.name.localeCompare(b.name));
-
-  // Renderizar Pastas Primeiro
-  folders.forEach(item => {
-    const hasItems = folderStatus[item.path] || false;
-    const folderIcon = hasItems ? ICONS.folderFull : ICONS.folderEmpty;
-
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 8px;">
-        ${folderIcon}
-        <span>${item.name}</span>
-      </div>
-      ${state.isDeleteMode ? `<button class="danger-btn item-delete-btn">${ICONS.delete}</button>` : ''}
-    `;
-
-    li.addEventListener('click', (e) => {
-      if (e.target.closest('.item-delete-btn')) return;
-      state.currentPath = item.path;
-      loadTree();
-    });
-
-    if (state.isDeleteMode) {
-      const delBtn = li.querySelector('.item-delete-btn');
-      if (delBtn) delBtn.addEventListener('click', () => deleteItem(item));
-    }
-
-    fileTree.appendChild(li);
-  });
-
-  // Renderizar Arquivos Depois
-  files.forEach(item => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 8px;">
-        ${ICONS.file}
-        <span>${item.name}</span>
-      </div>
-      ${state.isDeleteMode ? `<button class="danger-btn item-delete-btn">${ICONS.delete}</button>` : ''}
-    `;
-
-    li.addEventListener('click', (e) => {
-      if (e.target.closest('.item-delete-btn')) return;
-      openFile(item);
-    });
-
-    if (state.isDeleteMode) {
-      const delBtn = li.querySelector('.item-delete-btn');
-      if (delBtn) delBtn.addEventListener('click', () => deleteItem(item));
-    }
-
-    fileTree.appendChild(li);
-  });
-}
-
-function toggleDeleteMode() {
-  state.isDeleteMode = !state.isDeleteMode;
-  const toggleBtn = document.getElementById('toggle-delete-mode-btn');
-  if (state.isDeleteMode) {
-    toggleBtn.classList.add('delete-mode-active');
-  } else {
-    toggleBtn.classList.remove('delete-mode-active');
-  }
-  renderTree();
-}
-
-async function openFile(file) {
-  showLoading(true);
-  try {
-    const fileData = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${file.path}`);
-    state.selectedFile = fileData;
-    
-    // Decodificar Base64 UTF-8
-    const content = decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))));
-    
-    if (state.editor) {
-      const extension = file.name.split('.').pop().toLowerCase();
-      const langMap = { js: 'javascript', html: 'html', css: 'css', json: 'json', md: 'markdown', php: 'php', py: 'python' };
-      const model = monaco.editor.createModel(content, langMap[extension] || 'plaintext');
-      state.editor.setModel(model);
-    }
-    
-    document.getElementById('mobile-editor').value = content;
-    document.getElementById('current-file-name').textContent = file.name;
-    
-    const actionsGroup = document.getElementById('editor-actions-group');
-    actionsGroup.classList.remove('action-hidden');
-    actionsGroup.classList.add('action-visible');
-
-    setSaveButtonActive(false);
-  } catch (err) {
-    showToast(`Erro ao abrir arquivo: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function saveCurrentFile() {
-  if (!state.selectedFile) return;
-  
-  const isMobile = window.innerWidth <= 768;
-  const newContent = isMobile 
-    ? document.getElementById('mobile-editor').value 
-    : state.editor.getValue();
-
-  showLoading(true);
-  try {
-    // Encapsular UTF-8 para Base64
-    const encodedContent = btoa(unescape(encodeURIComponent(newContent)));
-    
-    const response = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${state.selectedFile.path}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: `Atualizado via IDE: ${state.selectedFile.name}`,
-        content: encodedContent,
-        sha: state.selectedFile.sha,
-        branch: state.currentBranch
-      })
-    });
-
-    state.selectedFile.sha = response.content.sha;
-    setSaveButtonActive(false);
-    showToast('Arquivo salvo com sucesso!');
-  } catch (err) {
-    showToast(`Erro ao salvar: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function createNewFile() {
-  const fileName = prompt('Nome do novo arquivo (ex: index.html):');
-  if (!fileName) return;
-
-  const fullPath = state.currentPath ? `${state.currentPath}/${fileName}` : fileName;
-  showLoading(true);
-  try {
-    await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${fullPath}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: `Criar arquivo: ${fileName}`,
-        content: '',
-        branch: state.currentBranch
-      })
-    });
-    showToast('Arquivo criado com sucesso!');
-    await loadTree();
-  } catch (err) {
-    showToast(`Erro ao criar arquivo: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function createNewFolder() {
-  const folderName = prompt('Nome da nova pasta:');
-  if (!folderName) return;
-
-  const fullPath = state.currentPath ? `${state.currentPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
-  showLoading(true);
-  try {
-    await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${fullPath}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: `Criar pasta: ${folderName}`,
-        content: '',
-        branch: state.currentBranch
-      })
-    });
-    showToast('Pasta criada com sucesso!');
-    await loadTree();
-  } catch (err) {
-    showToast(`Erro ao criar pasta: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function deleteItem(item) {
-  if (!confirm(`Confirma a exclusão de "${item.name}"?`)) return;
-  showLoading(true);
-  try {
-    if (item.type === 'dir') {
-      const contents = await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`);
-      for (const subItem of contents) {
-        await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${subItem.path}`, {
-          method: 'DELETE',
-          body: JSON.stringify({
-            message: `Remover arquivo interno: ${subItem.name}`,
-            sha: subItem.sha,
-            branch: state.currentBranch
-          })
-        });
-      }
+  toggleDeleteBtn.addEventListener('click', () => {
+    isDeleteMode = !isDeleteMode;
+    if (isDeleteMode) {
+      toggleDeleteBtn.classList.add('delete-mode-active');
+      showToast('Modo de exclusão ativado. Clique em um item para excluir.', 'error');
     } else {
-      await githubFetch(`/repos/${state.user.login}/${state.currentRepo.name}/contents/${item.path}`, {
-        method: 'DELETE',
-        body: JSON.stringify({
-          message: `Remover: ${item.name}`,
-          sha: item.sha,
-          branch: state.currentBranch
-        })
-      });
+      toggleDeleteBtn.classList.remove('delete-mode-active');
+      showToast('Modo de exclusão desativado.');
     }
+  });
 
-    showToast('Item removido com sucesso!');
-    if (state.selectedFile && state.selectedFile.path === item.path) {
-      resetEditorActionsState();
-    }
-    await loadTree();
-  } catch (err) {
-    showToast(`Erro ao excluir: ${err.message}`, 'error');
-  } finally {
-    showLoading(false);
-  }
-}
+  document.getElementById('save-file-btn').addEventListener('click', handleSaveFile);
+  document.getElementById('delete-file-btn').addEventListener('click', () => handleDeleteItem(currentFilePath, 'file'));
+  document.getElementById('preview-btn').addEventListener('click', handlePreview);
+  document.getElementById('close-preview-btn').addEventListener('click', () => {
+    document.getElementById('preview-modal').style.display = 'none';
+  });
 
-function openPreview() {
-  const isMobile = window.innerWidth <= 768;
-  const content = isMobile 
-    ? document.getElementById('mobile-editor').value 
-    : state.editor.getValue();
-
-  const iframe = document.getElementById('preview-frame');
-  const modal = document.getElementById('preview-modal');
-  
-  modal.style.display = 'flex';
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(content);
-  doc.close();
-}
-
-function closePreview() {
-  document.getElementById('preview-modal').style.display = 'none';
+  document.getElementById('expand-editor-btn').addEventListener('click', toggleExpandEditor);
 }
 
 function toggleExpandEditor() {
   const container = document.getElementById('code-editor-area');
   const btn = document.getElementById('expand-editor-btn');
-  const isFullscreen = container.classList.toggle('fullscreen-editor');
-
-  if (isFullscreen) {
-    btn.innerHTML = `${ICONS.shrink} Reduzir`;
+  
+  if (container.classList.contains('fullscreen-editor')) {
+    container.classList.remove('fullscreen-editor');
+    btn.innerHTML = `${ICON_EXPAND} Expandir`;
   } else {
-    btn.innerHTML = `${ICONS.expand} Expandir`;
+    container.classList.add('fullscreen-editor');
+    btn.innerHTML = `${ICON_COMPRESS} Restaurar`;
   }
 
-  if (state.editor) {
-    setTimeout(() => state.editor.layout(), 100);
+  if (monacoEditor) {
+    setTimeout(() => {
+      monacoEditor.layout();
+    }, 150);
   }
+}
+
+async function loadRepositories() {
+  showLoading('Buscando repositórios...');
+  try {
+    const repos = await fetchGitHub('/user/repos?per_page=100&sort=updated');
+    const repoList = document.getElementById('repo-list');
+    repoList.innerHTML = '';
+
+    const user = await fetchGitHub('/user');
+    currentRepoOwner = user.login;
+
+    repos.forEach(repo => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="repo-link" data-repo="${repo.name}">
+          ${ICON_REPO} ${repo.name}
+        </span>
+        <button class="danger-btn delete-repo-btn" data-repo="${repo.name}" title="Excluir Repositório">
+          ${ICON_CLOSE_X}
+        </button>
+      `;
+      repoList.appendChild(li);
+    });
+
+    document.querySelectorAll('.repo-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const repoName = e.currentTarget.getAttribute('data-repo');
+        openRepository(repoName);
+      });
+    });
+
+    document.querySelectorAll('.delete-repo-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const repoName = e.currentTarget.getAttribute('data-repo');
+        handleDeleteRepository(repoName);
+      });
+    });
+
+  } catch (err) {
+    showToast('Erro ao carregar repositórios: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleDeleteRepository(repoName) {
+  if (!confirm(`Tem certeza de que deseja excluir permanentemente o repositório "${repoName}"?`)) return;
+  showLoading('Excluindo repositório...');
+  try {
+    await fetchGitHub(`/repos/${currentRepoOwner}/${repoName}`, 'DELETE');
+    showToast(`Repositório "${repoName}" excluído com sucesso!`);
+    loadRepositories();
+  } catch (err) {
+    showToast('Erro ao excluir repositório: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function openRepository(repoName) {
+  currentRepoName = repoName;
+  currentFilePath = '';
+  currentFileSha = '';
+  setEditorActionsVisible(false);
+  document.getElementById('current-repo-title').innerText = `Repositório: ${repoName}`;
+  showSection('editor-section');
+  await loadTree();
+}
+
+async function loadTree() {
+  showLoading('Carregando arquivos...');
+  try {
+    const branchData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/branches/main`)
+      .catch(() => fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/branches/master`));
+
+    const treeSha = branchData.commit.commit.tree.sha;
+    const treeData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/git/trees/${treeSha}?recursive=1`);
+    
+    currentTreeData = treeData.tree;
+    renderFileTree(currentTreeData);
+  } catch (err) {
+    showToast('Erro ao carregar árvore de arquivos: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderFileTree(tree) {
+  const fileTreeUI = document.getElementById('file-tree');
+  fileTreeUI.innerHTML = '';
+
+  // 1. Mapeia caminhos de diretórios existentes para saber se estão vazios ou contêm arquivos
+  const dirSet = new Set();
+  tree.forEach(item => {
+    if (item.type === 'tree') {
+      dirSet.add(item.path);
+    }
+  });
+
+  const parentDirHasChildren = {};
+  dirSet.forEach(dirPath => {
+    const hasChild = tree.some(child => child.path !== dirPath && child.path.startsWith(dirPath + '/'));
+    parentDirHasChildren[dirPath] = hasChild;
+  });
+
+  // 2. Separa Pastas e Arquivos para manter pastas SEMPRE no topo
+  const folders = tree.filter(item => item.type === 'tree');
+  const files = tree.filter(item => item.type === 'blob');
+
+  folders.sort((a, b) => a.path.localeCompare(b.path));
+  files.sort((a, b) => a.path.localeCompare(b.path));
+
+  // Lista unificada: Primeiro Pastas, Depois Arquivos
+  const sortedTree = [...folders, ...files];
+
+  sortedTree.forEach(item => {
+    const li = document.createElement('li');
+    let icon = ICON_FILE;
+
+    if (item.type === 'tree') {
+      const hasChildren = parentDirHasChildren[item.path];
+      icon = hasChildren ? ICON_FOLDER_FULL : ICON_FOLDER_EMPTY;
+    }
+
+    li.innerHTML = `
+      <div class="tree-item-title">
+        ${icon}
+        <span>${item.path}</span>
+      </div>
+    `;
+
+    li.addEventListener('click', () => {
+      if (isDeleteMode) {
+        handleDeleteItem(item.path, item.type === 'tree' ? 'folder' : 'file');
+      } else if (item.type === 'blob') {
+        loadFileContent(item.path, item.sha);
+      }
+    });
+
+    fileTreeUI.appendChild(li);
+  });
+}
+
+function setEditorActionsVisible(visible) {
+  const actionsContainer = document.getElementById('editor-actions');
+  if (visible) {
+    actionsContainer.classList.remove('action-hidden');
+    actionsContainer.classList.add('action-visible');
+  } else {
+    actionsContainer.classList.remove('action-visible');
+    actionsContainer.classList.add('action-hidden');
+  }
+}
+
+async function loadFileContent(path, sha) {
+  showLoading(`Abrindo ${path}...`);
+  try {
+    const data = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${path}`);
+    currentFilePath = path;
+    currentFileSha = data.sha;
+
+    const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+    
+    document.getElementById('editing-file-path').innerText = `Arquivo: ${path}`;
+    
+    if (monacoEditor) {
+      const extension = path.split('.').pop().toLowerCase();
+      let lang = 'plaintext';
+      if (['js', 'json', 'html', 'css', 'ts', 'php', 'py', 'md', 'xml', 'sql'].includes(extension)) {
+        lang = extension === 'js' ? 'javascript' : (extension === 'md' ? 'markdown' : extension);
+      }
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+    }
+
+    setActiveEditorContent(decoded);
+    setEditorActionsVisible(true);
+  } catch (err) {
+    showToast('Erro ao carregar arquivo: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleSaveFile() {
+  if (!currentFilePath) return;
+  const content = getActiveEditorContent();
+  if (content === originalFileContent) return;
+
+  showLoading('Salvando alterações...');
+  try {
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const res = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${currentFilePath}`, 'PUT', {
+      message: `Update ${currentFilePath} via Web CMS IDE`,
+      content: encoded,
+      sha: currentFileSha
+    });
+
+    currentFileSha = res.content.sha;
+    originalFileContent = content;
+    checkContentChange();
+    showToast('Arquivo salvo com sucesso!');
+    await loadTree();
+  } catch (err) {
+    showToast('Erro ao salvar arquivo: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleCreateFile() {
+  const fileName = prompt('Digite o caminho/nome do novo arquivo (Ex: js/script.js):');
+  if (!fileName) return;
+
+  showLoading('Criando arquivo...');
+  try {
+    const encoded = btoa(unescape(encodeURIComponent('// Novo arquivo')));
+    await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${fileName}`, 'PUT', {
+      message: `Create ${fileName} via Web CMS IDE`,
+      content: encoded
+    });
+
+    showToast('Arquivo criado com sucesso!');
+    await loadTree();
+    loadFileContent(fileName);
+  } catch (err) {
+    showToast('Erro ao criar arquivo: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleCreateFolder() {
+  const folderName = prompt('Digite o nome da nova pasta:');
+  if (!folderName) return;
+
+  const keepFilePath = `${folderName.replace(/\/$/, '')}/.keep`;
+  showLoading('Criando pasta...');
+  try {
+    const encoded = btoa(unescape(encodeURIComponent('')));
+    await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${keepFilePath}`, 'PUT', {
+      message: `Create folder ${folderName} via Web CMS IDE`,
+      content: encoded
+    });
+
+    showToast('Pasta criada com sucesso!');
+    await loadTree();
+  } catch (err) {
+    showToast('Erro ao criar pasta: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleDeleteItem(path, type = 'file') {
+  if (!path) return;
+  
+  if (!confirm(`Tem certeza de que deseja excluir ${type === 'folder' ? 'a pasta' : 'o arquivo'} "${path}"?`)) return;
+
+  showLoading(`Excluindo ${path}...`);
+  try {
+    if (type === 'file') {
+      let sha = currentFileSha;
+      if (path !== currentFilePath) {
+        const fileData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${path}`);
+        sha = fileData.sha;
+      }
+      await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${path}`, 'DELETE', {
+        message: `Delete ${path} via Web CMS IDE`,
+        sha: sha
+      });
+    } else {
+      const itemsToDelete = currentTreeData.filter(item => item.path === path || item.path.startsWith(path + '/'));
+      for (const item of itemsToDelete) {
+        if (item.type === 'blob') {
+          const fileData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${item.path}`);
+          await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${item.path}`, 'DELETE', {
+            message: `Delete ${item.path} via Web CMS IDE (Folder Cleanup)`,
+            sha: fileData.sha
+          });
+        }
+      }
+    }
+
+    showToast('Item excluído com sucesso!');
+    
+    if (path === currentFilePath || path.startsWith(currentFilePath)) {
+      currentFilePath = '';
+      currentFileSha = '';
+      document.getElementById('editing-file-path').innerText = 'Selecione um arquivo';
+      setActiveEditorContent('');
+      setEditorActionsVisible(false);
+    }
+
+    if (isDeleteMode) {
+      isDeleteMode = false;
+      document.getElementById('toggle-delete-mode-btn').classList.remove('delete-mode-active');
+    }
+
+    await loadTree();
+  } catch (err) {
+    showToast('Erro ao excluir item: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handlePreview() {
+  showLoading('Gerando preview do projeto...');
+  try {
+    const htmlFile = currentTreeData.find(item => item.path.toLowerCase() === 'index.html');
+    if (!htmlFile) {
+      throw new Error('Nenhum arquivo index.html encontrado na raiz do repositório.');
+    }
+
+    const htmlData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${htmlFile.path}`);
+    let htmlContent = decodeURIComponent(escape(atob(htmlData.content.replace(/\s/g, ''))));
+
+    if (currentFilePath.toLowerCase() === 'index.html') {
+      htmlContent = getActiveEditorContent();
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+    const cssLinks = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+    for (const link of cssLinks) {
+      const href = link.getAttribute('href');
+      if (href && !href.startsWith('http://') && !href.startsWith('https://')) {
+        const cleanPath = resolveRelativePath('', href);
+        try {
+          let cssContent = '';
+          if (cleanPath === currentFilePath) {
+            cssContent = getActiveEditorContent();
+          } else {
+            const cssData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${cleanPath}`);
+            cssContent = decodeURIComponent(escape(atob(cssData.content.replace(/\s/g, ''))));
+          }
+          const style = doc.createElement('style');
+          style.textContent = cssContent;
+          link.parentNode.replaceChild(style, link);
+        } catch (e) {
+          console.warn(`Não foi possível embutir o CSS: ${cleanPath}`);
+        }
+      }
+    }
+
+    const scripts = Array.from(doc.querySelectorAll('script[src]'));
+    for (const script of scripts) {
+      const src = script.getAttribute('src');
+      if (src && !src.startsWith('http://') && !src.startsWith('https://')) {
+        const cleanPath = resolveRelativePath('', src);
+        try {
+          let jsContent = '';
+          if (cleanPath === currentFilePath) {
+            jsContent = getActiveEditorContent();
+          } else {
+            const jsData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/contents/${cleanPath}`);
+            jsContent = decodeURIComponent(escape(atob(jsData.content.replace(/\s/g, ''))));
+          }
+          const newScript = doc.createElement('script');
+          newScript.textContent = jsContent;
+          script.parentNode.replaceChild(newScript, script);
+        } catch (e) {
+          console.warn(`Não foi possível embutir o JS: ${cleanPath}`);
+        }
+      }
+    }
+
+    const previewFrame = document.getElementById('preview-frame');
+    previewFrame.srcdoc = doc.documentElement.outerHTML;
+    document.getElementById('preview-modal').style.display = 'flex';
+
+  } catch (err) {
+    showToast('Erro ao carregar preview: ' + err.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function resolveRelativePath(base, relative) {
+  const stack = base.split('/').filter(p => p.length > 0);
+  if (stack.length > 0) stack.pop();
+  const parts = relative.split('/');
+  for (const part of parts) {
+    if (part === '.') continue;
+    if (part === '..') {
+      if (stack.length > 0) stack.pop();
+    } else {
+      stack.push(part);
+    }
+  }
+  return stack.join('/');
+}
+
+async function fetchGitHub(endpoint, method = 'GET', body = null) {
+  const token = localStorage.getItem('gh_token');
+  if (!token) throw new Error('Token do GitHub não encontrado.');
+
+  const options = {
+    method,
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    }
+  };
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`https://api.github.com${endpoint}`, options);
+  
+  if (response.status === 204) return true;
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Ocorreu um erro na requisição ao GitHub.');
+  }
+
+  return data;
 }
