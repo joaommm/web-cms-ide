@@ -30,8 +30,9 @@ const newFileBtn = document.getElementById('new-file-btn');
 const newFolderBtn = document.getElementById('new-folder-btn');
 const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
+
 const logoutWrapper = document.getElementById('logout-wrapper');
-const logoutExpandable = document.getElementById('logout-expandable');
+const logoutPopover = document.getElementById('logout-popover');
 const powerToggleBtn = document.getElementById('power-toggle-btn');
 const logoutBtn = document.getElementById('logout-btn');
 
@@ -53,6 +54,10 @@ const previewFrame = document.getElementById('preview-frame');
 const loadingOverlay = document.getElementById('loading-overlay');
 const loadingMessage = document.getElementById('loading-message');
 const toastContainer = document.getElementById('toast-container');
+
+// SVG ÍCONES PARA RETRAIR E EXPANDIR
+const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -194,23 +199,23 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-/* LÓGICA DO BOTÃO DE DESLIGAR E CONFIRMAÇÃO */
+/* INTERAÇÃO DO POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
 powerToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  const isCurrentlyExpanded = logoutExpandable.classList.contains('logout-expanded');
-  if (isCurrentlyExpanded) {
-    logoutExpandable.classList.remove('logout-expanded');
-    logoutExpandable.classList.add('logout-collapsed');
+  const isVisible = logoutPopover.classList.contains('logout-popover-visible');
+  if (isVisible) {
+    logoutPopover.classList.remove('logout-popover-visible');
+    logoutPopover.classList.add('logout-popover-hidden');
   } else {
-    logoutExpandable.classList.remove('logout-collapsed');
-    logoutExpandable.classList.add('logout-expanded');
+    logoutPopover.classList.remove('logout-popover-hidden');
+    logoutPopover.classList.add('logout-popover-visible');
   }
 });
 
 document.addEventListener('click', (e) => {
   if (!logoutWrapper.contains(e.target)) {
-    logoutExpandable.classList.remove('logout-expanded');
-    logoutExpandable.classList.add('logout-collapsed');
+    logoutPopover.classList.remove('logout-popover-visible');
+    logoutPopover.classList.add('logout-popover-hidden');
   }
 });
 
@@ -521,19 +526,19 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-/* ALTERAÇÃO DOS ÍCONES DE EXPANDIR E RETRAIR */
+/* ALTERAÇÃO DOS ÍCONES COM SVG VETORIAL */
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
   if (isExpanded) {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
-    expandIcon.textContent = '🗗';
+    expandIcon.innerHTML = retractSVG;
     expandText.textContent = 'Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandIcon.textContent = '⛶';
+    expandIcon.innerHTML = expandSVG;
     expandText.textContent = 'Expandir';
   }
 
@@ -653,7 +658,7 @@ backToReposBtn.addEventListener('click', async () => {
     isExpanded = false;
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandIcon.textContent = '⛶';
+    expandIcon.innerHTML = expandSVG;
     expandText.textContent = 'Expandir';
   }
 
