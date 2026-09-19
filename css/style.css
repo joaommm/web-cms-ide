@@ -265,14 +265,15 @@ button.save-active {
 
 #mobile-editor {
   width: 100%;
-  height: 480px;
-  min-height: 480px;
+  height: 400px;
+  min-height: 300px;
   font-family: monospace;
   font-size: 14px;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  resize: none;
+  resize: vertical;
+  margin-top: 10px;
 }
 
 /* MODO FULLSCREEN (EXPANDIDO) CONTEXTUALIZADO POR DISPOSITIVO */
@@ -318,20 +319,23 @@ button.save-active {
   }
 }
 
-/* MOBILE: Oculta o Monaco, expande o textarea */
+/* MOBILE: Oculta o Monaco e exibe o mobile-editor normalmente e ao expandir */
 @media (max-width: 768px) {
   #monaco-container {
     display: none !important;
   }
+
+  #mobile-editor {
+    display: block !important;
+  }
+
   .fullscreen-editor #mobile-editor {
     flex: 1 !important;
     height: 100% !important;
     min-height: 0 !important;
-    display: block !important;
     margin: 0 !important;
   }
   
-  /* Em telas pequenas, se o espaço à esquerda for curto, o popover ajusta para baixo */
   #logout-popover {
     top: 48px;
     right: 0;
