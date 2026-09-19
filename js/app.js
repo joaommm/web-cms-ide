@@ -2,11 +2,11 @@ let github = null;
 let currentUser = null;
 let currentRepo = null;
 let currentFile = null;
+let originalFileContent = '';
+let hasUnsavedChanges = false;
 let currentFolderPath = '';
 let monacoEditor = null;
 let isExpanded = false;
-let originalContent = '';
-let isDirty = false;
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
@@ -68,6 +68,28 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
+function updateSaveButtonState(modified) {
+  hasUnsavedChanges = modified;
+  if (modified) {
+    saveFileBtn.classList.remove('save-disabled');
+    saveFileBtn.classList.add('save-active');
+    saveFileBtn.disabled = false;
+    saveFileBtn.textContent = '* Salvar';
+  } else {
+    saveFileBtn.classList.remove('save-active');
+    saveFileBtn.classList.add('save-disabled');
+    saveFileBtn.disabled = true;
+    saveFileBtn.textContent = 'Salvar';
+  }
+}
+
+function checkUnsavedChanges() {
+  if (hasUnsavedChanges) {
+    return confirm('Você possui alterações não salvas no arquivo atual. Deseja descartá-las?');
+  }
+  return true;
+}
+
 function getLanguageFromFilename(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   switch (ext) {
@@ -78,34 +100,6 @@ function getLanguageFromFilename(filename) {
     case 'md': return 'markdown';
     default: return 'plaintext';
   }
-}
-
-function setUnsavedStatus(dirty) {
-  isDirty = dirty;
-  if (!currentFile) return;
-
-  if (isDirty) {
-    currentFileTitle.textContent = `Arquivo: ${currentFile.name} *`;
-    saveFileBtn.disabled = false;
-    saveFileBtn.classList.remove('btn-disabled');
-  } else {
-    currentFileTitle.textContent = `Arquivo: ${currentFile.name}`;
-    saveFileBtn.disabled = true;
-    saveFileBtn.classList.add('btn-disabled');
-  }
-}
-
-function checkCurrentContent() {
-  if (!currentFile) return;
-  const currentVal = isMobile ? mobileEditor.value : monacoEditor.getValue();
-  setUnsavedStatus(currentVal !== originalContent);
-}
-
-function confirmDiscardChanges() {
-  if (isDirty) {
-    return confirm('Você tem alterações NÃO SALVAS no arquivo atual. Deseja descartá-las?');
-  }
-  return true;
 }
 
 if (!isMobile) {
@@ -119,19 +113,18 @@ if (!isMobile) {
     });
 
     monacoEditor.onDidChangeModelContent(() => {
-      checkCurrentContent();
+      if (currentFile) {
+        const currentContent = monacoEditor.getValue();
+        updateSaveButtonState(currentContent !== originalFileContent);
+      }
     });
   });
 }
 
 mobileEditor.addEventListener('input', () => {
-  checkCurrentContent();
-});
-
-window.addEventListener('beforeunload', (e) => {
-  if (isDirty) {
-    e.preventDefault();
-    e.returnValue = '';
+  if (currentFile) {
+    const currentContent = mobileEditor.value;
+    updateSaveButtonState(currentContent !== originalFileContent);
   }
 });
 
@@ -181,7 +174,7 @@ connectBtn.addEventListener('click', async () => {
 });
 
 logoutBtn.addEventListener('click', () => {
-  if (!confirmDiscardChanges()) return;
+  if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
   location.reload();
 });
@@ -300,7 +293,7 @@ async function loadFiles(path = '') {
       backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
       backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', async () => {
-        if (!confirmDiscardChanges()) return;
+        if (!checkUnsavedChanges()) return;
         const pathParts = currentFolderPath.split('/');
         pathParts.pop();
         currentFolderPath = pathParts.join('/');
@@ -317,13 +310,13 @@ async function loadFiles(path = '') {
 
       if (item.type === 'dir') {
         li.addEventListener('click', async () => {
-          if (!confirmDiscardChanges()) return;
+          if (!checkUnsavedChanges()) return;
           currentFolderPath = item.path;
           await loadFiles(currentFolderPath);
         });
       } else if (item.type === 'file') {
         li.addEventListener('click', () => {
-          if (!confirmDiscardChanges()) return;
+          if (!checkUnsavedChanges()) return;
           openFile(item.path);
         });
       }
@@ -351,7 +344,8 @@ async function openFile(filePath) {
       name: fileData.name
     };
 
-    originalContent = decodedContent;
+    originalFileContent = decodedContent;
+    currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
 
     if (isMobile) {
       mobileEditor.value = decodedContent;
@@ -362,11 +356,11 @@ async function openFile(filePath) {
       setTimeout(() => monacoEditor.layout(), 50);
     }
 
+    updateSaveButtonState(false);
+
     saveFileBtn.style.display = 'inline-block';
     deleteFileBtn.style.display = 'inline-block';
     expandBtn.style.display = 'inline-block';
-
-    setUnsavedStatus(false);
 
     if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
       previewBtn.style.display = 'inline-block';
@@ -381,7 +375,7 @@ async function openFile(filePath) {
 }
 
 saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile || !isDirty) return;
+  if (!currentFile || !hasUnsavedChanges) return;
 
   showLoading('Salvando alterações no GitHub...');
 
@@ -396,8 +390,8 @@ saveFileBtn.addEventListener('click', async () => {
     );
 
     currentFile.sha = result.content.sha;
-    originalContent = newContent;
-    setUnsavedStatus(false);
+    originalFileContent = newContent;
+    updateSaveButtonState(false);
     showToast('Alterações salvas com sucesso!');
   } catch (error) {
     showToast('Erro ao salvar: ' + error.message, 'error');
@@ -406,17 +400,18 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
+// Botão Expandir / Retrair Editor
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
   if (isExpanded) {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
-    expandBtn.textContent = '🗗 Retrair';
+    expandBtn.textContent = 'Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = '⛶ Expandir';
+    expandBtn.textContent = 'Expandir';
   }
 
   if (monacoEditor && !isMobile) {
@@ -424,6 +419,7 @@ expandBtn.addEventListener('click', () => {
   }
 });
 
+// Botão Preview ao Vivo
 previewBtn.addEventListener('click', () => {
   if (!currentFile) return;
 
@@ -440,10 +436,11 @@ closePreviewBtn.addEventListener('click', () => {
   previewModal.style.display = 'none';
 });
 
+// Criar Novo Arquivo
 newFileBtn.addEventListener('click', async () => {
-  if (!confirmDiscardChanges()) return;
+  if (!checkUnsavedChanges()) return;
 
-  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou estilo.css):');
+  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html):');
   if (!filename) return;
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
@@ -481,20 +478,20 @@ newFileBtn.addEventListener('click', async () => {
 
 // Criar Nova Pasta
 newFolderBtn.addEventListener('click', async () => {
-  if (!confirmDiscardChanges()) return;
+  if (!checkUnsavedChanges()) return;
 
-  const folderName = prompt('Digite o nome da nova pasta (ex: imagens ou css):');
+  const folderName = prompt('Digite o nome da nova pasta:');
   if (!folderName) return;
 
-  // No Git, pastas só existem com conteúdo. Criamos um arquivo oculto .gitkeep na pasta.
-  const gitkeepPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
+  // Como o Git não rastreia pastas vazias, criamos um arquivo .gitkeep dentro da nova pasta
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
 
   showLoading('Criando pasta...');
   try {
     await github.updateFile(
       currentUser.login,
       currentRepo,
-      gitkeepPath,
+      fullPath,
       '',
       null,
       `Criada pasta ${folderName} via Web CMS`
@@ -536,8 +533,8 @@ deleteFileBtn.addEventListener('click', async () => {
     );
 
     currentFile = null;
-    originalContent = '';
-    isDirty = false;
+    originalFileContent = '';
+    updateSaveButtonState(false);
 
     if (isMobile) mobileEditor.value = '';
     else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
@@ -569,18 +566,18 @@ deleteFileBtn.addEventListener('click', async () => {
 });
 
 backToReposBtn.addEventListener('click', async () => {
-  if (!confirmDiscardChanges()) return;
+  if (!checkUnsavedChanges()) return;
 
   currentFile = null;
+  originalFileContent = '';
   currentFolderPath = '';
-  originalContent = '';
-  isDirty = false;
+  updateSaveButtonState(false);
 
   if (isExpanded) {
     isExpanded = false;
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = '⛶ Expandir';
+    expandBtn.textContent = 'Expandir';
   }
 
   if (isMobile) mobileEditor.value = '';
