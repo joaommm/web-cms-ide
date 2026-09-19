@@ -4,7 +4,6 @@ class GitHubAPI {
     this.baseUrl = 'https://api.github.com';
   }
 
-  // Apenas cabeçalhos aceitos nativamente pela API do GitHub
   get headers() {
     return {
       'Authorization': `token ${this.token}`,
@@ -111,5 +110,20 @@ class GitHubAPI {
 
     if (!response.ok) throw new Error('Erro ao excluir o arquivo no GitHub.');
     return await response.json();
+  }
+
+  // Função para excluir todos os arquivos de uma pasta recursivamente
+  async deleteFolder(owner, repo, folderPath) {
+    const contents = await this.getContents(owner, repo, folderPath);
+
+    if (Array.isArray(contents)) {
+      for (const item of contents) {
+        if (item.type === 'file') {
+          await this.deleteFile(owner, repo, item.path, item.sha, `Excluída pasta ${folderPath}`);
+        } else if (item.type === 'dir') {
+          await this.deleteFolder(owner, repo, item.path);
+        }
+      }
+    }
   }
 }
