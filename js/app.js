@@ -30,13 +30,19 @@ const newFileBtn = document.getElementById('new-file-btn');
 const newFolderBtn = document.getElementById('new-folder-btn');
 const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
+const logoutWrapper = document.getElementById('logout-wrapper');
+const logoutExpandable = document.getElementById('logout-expandable');
+const powerToggleBtn = document.getElementById('power-toggle-btn');
 const logoutBtn = document.getElementById('logout-btn');
+
 const backToReposBtn = document.getElementById('back-to-repos-btn');
 const currentPathDisplay = document.getElementById('current-path-display');
 const mobileEditor = document.getElementById('mobile-editor');
 
 const previewBtn = document.getElementById('preview-btn');
 const expandBtn = document.getElementById('expand-btn');
+const expandIcon = document.getElementById('expand-icon');
+const expandText = document.getElementById('expand-text');
 const fileExplorer = document.getElementById('file-explorer');
 const codeEditorArea = document.getElementById('code-editor-area');
 
@@ -154,7 +160,7 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
-    logoutBtn.style.display = 'inline-block';
+    logoutWrapper.style.display = 'flex';
     await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
@@ -178,13 +184,33 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
-    logoutBtn.style.display = 'inline-block';
+    logoutWrapper.style.display = 'flex';
     await loadRepositories();
     showToast('Conectado com sucesso!');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
     hideLoading();
+  }
+});
+
+/* LÓGICA DO BOTÃO DE DESLIGAR E CONFIRMAÇÃO */
+powerToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isCurrentlyExpanded = logoutExpandable.classList.contains('logout-expanded');
+  if (isCurrentlyExpanded) {
+    logoutExpandable.classList.remove('logout-expanded');
+    logoutExpandable.classList.add('logout-collapsed');
+  } else {
+    logoutExpandable.classList.remove('logout-collapsed');
+    logoutExpandable.classList.add('logout-expanded');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!logoutWrapper.contains(e.target)) {
+    logoutExpandable.classList.remove('logout-expanded');
+    logoutExpandable.classList.add('logout-collapsed');
   }
 });
 
@@ -495,17 +521,20 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
+/* ALTERAÇÃO DOS ÍCONES DE EXPANDIR E RETRAIR */
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
   if (isExpanded) {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
-    expandBtn.textContent = '⤓ Retrair';
+    expandIcon.textContent = '🗗';
+    expandText.textContent = 'Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = '⤢ Expandir';
+    expandIcon.textContent = '⛶';
+    expandText.textContent = 'Expandir';
   }
 
   if (monacoEditor && !isMobile) {
@@ -624,7 +653,8 @@ backToReposBtn.addEventListener('click', async () => {
     isExpanded = false;
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
-    expandBtn.textContent = '⤢ Expandir';
+    expandIcon.textContent = '⛶';
+    expandText.textContent = 'Expandir';
   }
 
   if (isMobile) mobileEditor.value = '';
