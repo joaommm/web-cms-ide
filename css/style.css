@@ -66,7 +66,7 @@ button.danger-btn:hover { background-color: #a40e26; }
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
-/* BOTÃO DE DESLIGAR (TOTALMENTE VERMELHO) E POPOVER FLUTUANTE */
+/* BOTÃO DE DESLIGAR VERMELHO E POPOVER FLUTUANTE À ESQUERDA */
 #logout-wrapper {
   position: relative;
   display: flex;
@@ -87,15 +87,16 @@ button.secondary-btn:hover { background-color: #0451a5; }
   background-color: #a40e26 !important;
 }
 
-/* Menu Flutuante */
+/* Popover Flutuante alinhado à ESQUERDA do botão */
 #logout-popover {
   position: absolute;
-  top: 48px;
-  right: 0;
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%) translateX(-8px);
   background: #fff;
-  padding: 8px;
+  padding: 6px 8px;
   border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
   border: 1px solid #e1e4e8;
   z-index: 1000;
   white-space: nowrap;
@@ -104,14 +105,14 @@ button.secondary-btn:hover { background-color: #0451a5; }
 
 .logout-popover-hidden {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-50%) translateX(-16px);
   visibility: hidden;
   pointer-events: none;
 }
 
 .logout-popover-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(-50%) translateX(-8px);
   visibility: visible;
   pointer-events: auto;
 }
@@ -274,7 +275,7 @@ button.save-active {
   resize: none;
 }
 
-/* CORREÇÃO DEFINITIVA DO MODO TELA CHEIA (EXPANDIDO NO MOBILE) */
+/* MODO FULLSCREEN (EXPANDIDO) CONTEXTUALIZADO POR DISPOSITIVO */
 .fullscreen-editor {
   position: fixed !important;
   top: 0 !important;
@@ -304,18 +305,45 @@ button.save-active {
   background: #fff !important;
 }
 
-.fullscreen-editor #monaco-container {
-  flex: 1 !important;
-  height: 100% !important;
-  min-height: 0 !important;
+/* DESKTOP: Oculta o mobile-editor completamente, preservando apenas o Monaco */
+@media (min-width: 769px) {
+  #mobile-editor {
+    display: none !important;
+  }
+  .fullscreen-editor #monaco-container {
+    flex: 1 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    display: block !important;
+  }
 }
 
-.fullscreen-editor #mobile-editor {
-  flex: 1 !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  display: block !important;
-  margin: 0 !important;
+/* MOBILE: Oculta o Monaco, expande o textarea */
+@media (max-width: 768px) {
+  #monaco-container {
+    display: none !important;
+  }
+  .fullscreen-editor #mobile-editor {
+    flex: 1 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    display: block !important;
+    margin: 0 !important;
+  }
+  
+  /* Em telas pequenas, se o espaço à esquerda for curto, o popover ajusta para baixo */
+  #logout-popover {
+    top: 48px;
+    right: 0;
+    left: auto;
+    transform: none;
+  }
+  .logout-popover-hidden {
+    transform: translateY(-8px);
+  }
+  .logout-popover-visible {
+    transform: translateY(0);
+  }
 }
 
 /* MODAL PREVIEW EM TELA CHEIA */
@@ -418,7 +446,7 @@ button.save-active {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* RESPONSIVIDADE MOBILE */
+/* RESPONSIVIDADE GENERALIZADA */
 @media (max-width: 768px) {
   body { padding: 8px; }
   #app { padding: 12px; }
@@ -429,8 +457,7 @@ button.save-active {
     border-right: none;
     padding-right: 0;
   }
-  #monaco-container { display: none !important; }
-  #mobile-editor { display: block !important; }
+
   #toast-container { left: 20px; right: 20px; bottom: 15px; }
 
   .editor-top-bar {
