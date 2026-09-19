@@ -5,6 +5,8 @@ let currentFile = null;
 let currentFolderPath = '';
 let monacoEditor = null;
 let isExpanded = false;
+let originalContent = '';
+let isDirty = false;
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
@@ -23,6 +25,7 @@ const currentFileTitle = document.getElementById('current-file-title');
 const saveFileBtn = document.getElementById('save-file-btn');
 const deleteFileBtn = document.getElementById('delete-file-btn');
 const newFileBtn = document.getElementById('new-file-btn');
+const newFolderBtn = document.getElementById('new-folder-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const backToReposBtn = document.getElementById('back-to-repos-btn');
@@ -77,6 +80,34 @@ function getLanguageFromFilename(filename) {
   }
 }
 
+function setUnsavedStatus(dirty) {
+  isDirty = dirty;
+  if (!currentFile) return;
+
+  if (isDirty) {
+    currentFileTitle.textContent = `Arquivo: ${currentFile.name} *`;
+    saveFileBtn.disabled = false;
+    saveFileBtn.classList.remove('btn-disabled');
+  } else {
+    currentFileTitle.textContent = `Arquivo: ${currentFile.name}`;
+    saveFileBtn.disabled = true;
+    saveFileBtn.classList.add('btn-disabled');
+  }
+}
+
+function checkCurrentContent() {
+  if (!currentFile) return;
+  const currentVal = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  setUnsavedStatus(currentVal !== originalContent);
+}
+
+function confirmDiscardChanges() {
+  if (isDirty) {
+    return confirm('Você tem alterações NÃO SALVAS no arquivo atual. Deseja descartá-las?');
+  }
+  return true;
+}
+
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
@@ -86,8 +117,23 @@ if (!isMobile) {
       theme: 'vs-dark',
       automaticLayout: true
     });
+
+    monacoEditor.onDidChangeModelContent(() => {
+      checkCurrentContent();
+    });
   });
 }
+
+mobileEditor.addEventListener('input', () => {
+  checkCurrentContent();
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (isDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 window.addEventListener('load', () => {
   const savedToken = localStorage.getItem('gh_token');
@@ -135,6 +181,7 @@ connectBtn.addEventListener('click', async () => {
 });
 
 logoutBtn.addEventListener('click', () => {
+  if (!confirmDiscardChanges()) return;
   localStorage.removeItem('gh_token');
   location.reload();
 });
@@ -253,6 +300,7 @@ async function loadFiles(path = '') {
       backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
       backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', async () => {
+        if (!confirmDiscardChanges()) return;
         const pathParts = currentFolderPath.split('/');
         pathParts.pop();
         currentFolderPath = pathParts.join('/');
@@ -269,11 +317,15 @@ async function loadFiles(path = '') {
 
       if (item.type === 'dir') {
         li.addEventListener('click', async () => {
+          if (!confirmDiscardChanges()) return;
           currentFolderPath = item.path;
           await loadFiles(currentFolderPath);
         });
       } else if (item.type === 'file') {
-        li.addEventListener('click', () => openFile(item.path));
+        li.addEventListener('click', () => {
+          if (!confirmDiscardChanges()) return;
+          openFile(item.path);
+        });
       }
 
       fileTree.appendChild(li);
@@ -299,7 +351,7 @@ async function openFile(filePath) {
       name: fileData.name
     };
 
-    currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
+    originalContent = decodedContent;
 
     if (isMobile) {
       mobileEditor.value = decodedContent;
@@ -314,7 +366,8 @@ async function openFile(filePath) {
     deleteFileBtn.style.display = 'inline-block';
     expandBtn.style.display = 'inline-block';
 
-    // Exibe o botão de Preview se for HTML
+    setUnsavedStatus(false);
+
     if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
       previewBtn.style.display = 'inline-block';
     } else {
@@ -328,7 +381,7 @@ async function openFile(filePath) {
 }
 
 saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile) return;
+  if (!currentFile || !isDirty) return;
 
   showLoading('Salvando alterações no GitHub...');
 
@@ -343,6 +396,8 @@ saveFileBtn.addEventListener('click', async () => {
     );
 
     currentFile.sha = result.content.sha;
+    originalContent = newContent;
+    setUnsavedStatus(false);
     showToast('Alterações salvas com sucesso!');
   } catch (error) {
     showToast('Erro ao salvar: ' + error.message, 'error');
@@ -351,14 +406,13 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-// Botão Expandir / Restaurar Editor
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
   if (isExpanded) {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
-    expandBtn.textContent = '🗗 Restaurar';
+    expandBtn.textContent = '🗗 Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
@@ -370,14 +424,12 @@ expandBtn.addEventListener('click', () => {
   }
 });
 
-// Botão Preview ao Vivo
 previewBtn.addEventListener('click', () => {
   if (!currentFile) return;
 
   const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
   previewModal.style.display = 'flex';
 
-  // Injeta o conteúdo no iframe
   const doc = previewFrame.contentWindow.document;
   doc.open();
   doc.write(content);
@@ -389,7 +441,9 @@ closePreviewBtn.addEventListener('click', () => {
 });
 
 newFileBtn.addEventListener('click', async () => {
-  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou css/estilo.css):');
+  if (!confirmDiscardChanges()) return;
+
+  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html ou estilo.css):');
   if (!filename) return;
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
@@ -425,6 +479,47 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
+// Criar Nova Pasta
+newFolderBtn.addEventListener('click', async () => {
+  if (!confirmDiscardChanges()) return;
+
+  const folderName = prompt('Digite o nome da nova pasta (ex: imagens ou css):');
+  if (!folderName) return;
+
+  // No Git, pastas só existem com conteúdo. Criamos um arquivo oculto .gitkeep na pasta.
+  const gitkeepPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
+
+  showLoading('Criando pasta...');
+  try {
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      gitkeepPath,
+      '',
+      null,
+      `Criada pasta ${folderName} via Web CMS`
+    );
+
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
+      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === folderName.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
+    showToast('Pasta criada com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao criar pasta: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
 deleteFileBtn.addEventListener('click', async () => {
   if (!currentFile) return;
 
@@ -441,6 +536,9 @@ deleteFileBtn.addEventListener('click', async () => {
     );
 
     currentFile = null;
+    originalContent = '';
+    isDirty = false;
+
     if (isMobile) mobileEditor.value = '';
     else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
 
@@ -471,8 +569,13 @@ deleteFileBtn.addEventListener('click', async () => {
 });
 
 backToReposBtn.addEventListener('click', async () => {
+  if (!confirmDiscardChanges()) return;
+
   currentFile = null;
   currentFolderPath = '';
+  originalContent = '';
+  isDirty = false;
+
   if (isExpanded) {
     isExpanded = false;
     codeEditorArea.classList.remove('fullscreen-editor');
