@@ -35,6 +35,12 @@ body {
 
 h1, h2, h3 { color: #24292e; }
 
+/* DESTAQUE AZUL NO NOME DO REPOSITÓRIO (DESKTOP E MOBILE) */
+.repo-title-name {
+  color: #0969da;
+  font-weight: 700;
+}
+
 section { margin-top: 15px; }
 
 input[type="password"], input[type="text"] {
@@ -62,8 +68,16 @@ button {
 }
 
 button:hover { background-color: #2c974b; }
-button.danger-btn { background-color: #cf222e !important; }
-button.danger-btn:hover { background-color: #a40e26 !important; }
+
+/* COR VERMELHA PADRONIZADA IGUAL AO BOTÃO DE DESLIGAR (#cf222e / #a40e26) */
+button.danger-btn { 
+  background-color: #cf222e !important; 
+  color: #fff !important;
+}
+button.danger-btn:hover { 
+  background-color: #a40e26 !important; 
+}
+
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
@@ -155,7 +169,7 @@ button.save-active {
   opacity: 1;
 }
 
-/* BOTÃO PREVIEW DESABILITADO (ESTILO CINZA SIMILAR AO SALVAR) */
+/* BOTÃO PREVIEW DESABILITADO */
 button.preview-disabled {
   background-color: #8c959f !important;
   cursor: not-allowed;
@@ -335,7 +349,7 @@ button.preview-active {
 
 /* CAIXA DE TEXTO MOBILE */
 #mobile-editor {
-  display: none; /* Inicia oculto e só aparece quando há arquivo aberto */
+  display: none;
   width: 100%;
   height: 400px;
   min-height: 300px;
@@ -345,7 +359,7 @@ button.preview-active {
   border: 1px solid #ccc;
   border-radius: 4px;
   resize: vertical;
-  margin-top: 4px; /* Aproximado dos botões superiormente */
+  margin-top: 4px;
 }
 
 /* MODO FULLSCREEN (EXPANDIDO) */
@@ -391,7 +405,7 @@ button.preview-active {
   }
 }
 
-/* MOBILE - AJUSTES DE ESPAÇAMENTO E ALINHAMENTO */
+/* MOBILE - AJUSTES ESPECÍFICOS SOLICITADOS */
 @media (max-width: 768px) {
   #monaco-container {
     display: none !important;
@@ -407,9 +421,30 @@ button.preview-active {
     margin-bottom: 6px;
   }
 
+  /* BOTÃO VOLTAR RESTRITO APENAS AO ÍCONE NO MOBILE */
+  #back-to-repos-btn {
+    width: auto;
+    padding: 8px 14px;
+    font-size: 16px;
+  }
+  #back-to-repos-btn .btn-text {
+    display: none;
+  }
+
+  /* BOTÕES DO EDITOR (PREVIEW, EXPANDIR, EXCLUIR, SALVAR) APENAS COM ÍCONES NO MOBILE */
   .editor-actions {
-    width: 100%;
-    justify-content: flex-end; /* Garante alinhamento total à direita */
+    width: auto;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .editor-actions button {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .editor-actions button .btn-text {
+    display: none;
   }
 
   .fullscreen-editor #mobile-editor {
@@ -547,15 +582,9 @@ button.preview-active {
   #toast-container { left: 20px; right: 20px; bottom: 15px; }
 
   .editor-top-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
     gap: 10px;
-  }
-
-  #back-to-repos-btn {
-    width: 100%;
-    padding: 12px;
-    font-size: 15px;
-    text-align: center;
   }
 }
