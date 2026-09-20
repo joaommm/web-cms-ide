@@ -44,6 +44,7 @@ const previewBtn = document.getElementById('preview-btn');
 const expandBtn = document.getElementById('expand-btn');
 const expandIcon = document.getElementById('expand-icon');
 const expandText = document.getElementById('expand-text');
+const saveText = document.getElementById('save-text');
 const fileExplorer = document.getElementById('file-explorer');
 const codeEditorArea = document.getElementById('code-editor-area');
 
@@ -98,12 +99,12 @@ function updateSaveButtonState(modified) {
     saveFileBtn.classList.remove('save-disabled');
     saveFileBtn.classList.add('save-active');
     saveFileBtn.disabled = false;
-    saveFileBtn.textContent = '* Salvar';
+    if (saveText) saveText.textContent = 'Salvar';
   } else {
     saveFileBtn.classList.remove('save-active');
     saveFileBtn.classList.add('save-disabled');
     saveFileBtn.disabled = true;
-    saveFileBtn.textContent = 'Salvar';
+    if (saveText) saveText.textContent = 'Salvar';
   }
 }
 
@@ -311,7 +312,8 @@ async function confirmDeleteRepo(repoName) {
 
 async function selectRepo(repoName) {
   currentRepo = repoName;
-  currentRepoTitle.textContent = `Repositório: ${repoName}`;
+  // Nome do repositório destacado em azul igual à listagem principal
+  currentRepoTitle.innerHTML = `Repositório: <span class="repo-title-name">${repoName}</span>`;
 
   mainHeader.style.display = 'none';
   dashboardSection.style.display = 'none';
@@ -467,7 +469,6 @@ async function deleteFileByPath(filePath, sha) {
       originalFileContent = '';
       updateSaveButtonState(false);
       
-      // Oculta a caixa de texto no mobile ao excluir/desselecionar arquivo
       if (isMobile) {
         mobileEditor.value = '';
         mobileEditor.style.display = 'none';
@@ -510,7 +511,7 @@ async function openFile(filePath) {
 
     if (isMobile) {
       mobileEditor.value = decodedContent;
-      mobileEditor.style.display = 'block'; // Exibe a caixa de texto apenas ao abrir um arquivo
+      mobileEditor.style.display = 'block';
     } else if (monacoEditor) {
       monacoEditor.setValue(decodedContent);
       const language = getLanguageFromFilename(fileData.name);
@@ -525,7 +526,6 @@ async function openFile(filePath) {
     setActionButtonVisibility(expandBtn, true);
     setActionButtonVisibility(previewBtn, true);
 
-    // LÓGICA DO BOTÃO PREVIEW: Permanece visível, mas fica cinza e desabilitado em arquivos não-HTML
     if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
       previewBtn.disabled = false;
       previewBtn.classList.remove('preview-disabled');
@@ -576,12 +576,12 @@ expandBtn.addEventListener('click', () => {
     codeEditorArea.classList.add('fullscreen-editor');
     fileExplorer.style.display = 'none';
     expandIcon.innerHTML = retractSVG;
-    expandText.textContent = 'Retrair';
+    if (expandText) expandText.textContent = 'Retrair';
   } else {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
     expandIcon.innerHTML = expandSVG;
-    expandText.textContent = 'Expandir';
+    if (expandText) expandText.textContent = 'Expandir';
   }
 
   if (monacoEditor && !isMobile) {
@@ -701,7 +701,7 @@ backToReposBtn.addEventListener('click', async () => {
     codeEditorArea.classList.remove('fullscreen-editor');
     fileExplorer.style.display = 'block';
     expandIcon.innerHTML = expandSVG;
-    expandText.textContent = 'Expandir';
+    if (expandText) expandText.textContent = 'Expandir';
   }
 
   if (isMobile) {
