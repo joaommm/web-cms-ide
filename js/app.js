@@ -199,7 +199,6 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-/* POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
 powerToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const isVisible = logoutPopover.classList.contains('logout-popover-visible');
@@ -326,7 +325,6 @@ async function selectRepo(repoName) {
   await loadFiles(currentFolderPath);
 }
 
-// FIX CORRIGIDO PARA O BOTÃO DA LIXEIRA DO EXPLORER
 toggleDeleteModeBtn.addEventListener('click', () => {
   isDeleteMode = !isDeleteMode;
   toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
@@ -352,7 +350,6 @@ async function loadFiles(path = '') {
 
     fileTree.innerHTML = '';
 
-    // ORDENAÇÃO: Pastas primeiro, depois arquivos
     contents.sort((a, b) => {
       if (a.type === b.type) {
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -469,8 +466,14 @@ async function deleteFileByPath(filePath, sha) {
       currentFile = null;
       originalFileContent = '';
       updateSaveButtonState(false);
-      if (isMobile) mobileEditor.value = '';
-      else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+      
+      // Oculta a caixa de texto no mobile ao excluir/desselecionar arquivo
+      if (isMobile) {
+        mobileEditor.value = '';
+        mobileEditor.style.display = 'none';
+      } else {
+        monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+      }
 
       setActionButtonVisibility(saveFileBtn, false);
       setActionButtonVisibility(deleteFileBtn, false);
@@ -507,6 +510,7 @@ async function openFile(filePath) {
 
     if (isMobile) {
       mobileEditor.value = decodedContent;
+      mobileEditor.style.display = 'block'; // Exibe a caixa de texto apenas ao abrir um arquivo
     } else if (monacoEditor) {
       monacoEditor.setValue(decodedContent);
       const language = getLanguageFromFilename(fileData.name);
@@ -519,12 +523,19 @@ async function openFile(filePath) {
     setActionButtonVisibility(saveFileBtn, true);
     setActionButtonVisibility(deleteFileBtn, true);
     setActionButtonVisibility(expandBtn, true);
+    setActionButtonVisibility(previewBtn, true);
 
+    // LÓGICA DO BOTÃO PREVIEW: Permanece visível, mas fica cinza e desabilitado em arquivos não-HTML
     if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
-      setActionButtonVisibility(previewBtn, true);
+      previewBtn.disabled = false;
+      previewBtn.classList.remove('preview-disabled');
+      previewBtn.classList.add('preview-active');
     } else {
-      setActionButtonVisibility(previewBtn, false);
+      previewBtn.disabled = true;
+      previewBtn.classList.remove('preview-active');
+      previewBtn.classList.add('preview-disabled');
     }
+
   } catch (error) {
     showToast('Erro ao abrir arquivo: ' + error.message, 'error');
   } finally {
@@ -579,7 +590,7 @@ expandBtn.addEventListener('click', () => {
 });
 
 previewBtn.addEventListener('click', () => {
-  if (!currentFile) return;
+  if (!currentFile || previewBtn.disabled) return;
 
   const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
   previewModal.style.display = 'flex';
@@ -693,8 +704,12 @@ backToReposBtn.addEventListener('click', async () => {
     expandText.textContent = 'Expandir';
   }
 
-  if (isMobile) mobileEditor.value = '';
-  else monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+  if (isMobile) {
+    mobileEditor.value = '';
+    mobileEditor.style.display = 'none';
+  } else {
+    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+  }
 
   setActionButtonVisibility(saveFileBtn, false);
   setActionButtonVisibility(deleteFileBtn, false);
