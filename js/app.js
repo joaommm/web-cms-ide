@@ -199,7 +199,7 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-/* INTERAÇÃO DO POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
+/* POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
 powerToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const isVisible = logoutPopover.classList.contains('logout-popover-visible');
@@ -238,8 +238,9 @@ async function loadRepositories() {
     repoList.innerHTML = '';
     repos.forEach(repo => {
       const li = document.createElement('li');
+      // REMOVIDO O ÍCONE DA FRENTE DO NOME DO REPOSITÓRIO
       li.innerHTML = `
-        <a class="repo-link" onclick="selectRepo('${repo.name}')">📘 ${repo.name}</a>
+        <a class="repo-link" onclick="selectRepo('${repo.name}')">${repo.name}</a>
         <div>
           <button class="danger-btn" style="padding: 4px 8px; font-size: 12px;" onclick="confirmDeleteRepo('${repo.name}')" title="Excluir Repositório">✖</button>
         </div>
@@ -344,9 +345,15 @@ async function loadFiles(path = '') {
 
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
+    
+    // Tratamento para quando a pasta atual foi removida por ficar vazia no GitHub
+    if (!Array.isArray(contents)) {
+      contents = [];
+    }
+
     fileTree.innerHTML = '';
 
-    // ORDENAÇÃO: Pastas primeiro, depois arquivos (ordem alfabética)
+    // ORDENAÇÃO: Pastas primeiro, depois arquivos
     contents.sort((a, b) => {
       if (a.type === b.type) {
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -383,11 +390,9 @@ async function loadFiles(path = '') {
       const deleteBtn = li.querySelector('button');
 
       if (item.type === 'dir') {
-        // Checagem visual se a pasta está vazia ou recheada
         github.getContents(currentUser.login, currentRepo, item.path).then(subContents => {
           const iconSpan = li.querySelector('.item-icon');
           if (iconSpan) {
-            // Filtra o arquivo oculto .gitkeep para determinar se a pasta realmente possui conteúdo
             const realFiles = Array.isArray(subContents) ? subContents.filter(f => f.name !== '.gitkeep') : [];
             iconSpan.textContent = realFiles.length > 0 ? '📂' : '📁';
           }
@@ -419,8 +424,16 @@ async function loadFiles(path = '') {
       fileTree.appendChild(li);
     }
   } catch (error) {
-    fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
-    showToast('Erro ao carregar estrutura de arquivos.', 'error');
+    // Se a pasta não for encontrada (ex: após apagar o único arquivo dela), recua para o pai
+    if (path !== '') {
+      const pathParts = path.split('/');
+      pathParts.pop();
+      currentFolderPath = pathParts.join('/');
+      await loadFiles(currentFolderPath);
+    } else {
+      fileTree.innerHTML = '<li>Nenhum arquivo encontrado.</li>';
+      hideLoading();
+    }
   } finally {
     hideLoading();
   }
@@ -452,6 +465,7 @@ async function deleteFileByPath(filePath, sha) {
   showLoading('Excluindo arquivo...');
   try {
     await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
+
     if (currentFile && currentFile.path === filePath) {
       currentFile = null;
       originalFileContent = '';
@@ -465,8 +479,12 @@ async function deleteFileByPath(filePath, sha) {
       setActionButtonVisibility(previewBtn, false);
       currentFileTitle.textContent = 'Nenhum arquivo selecionado';
     }
+
     showToast('Arquivo excluído com sucesso!');
+
+    // Tenta recarregar a pasta atual; se a pasta deixou de existir no GitHub por ter ficado vazia, o handler de erro do loadFiles fará o recuo automático com segurança.
     await loadFiles(currentFolderPath);
+
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
   } finally {
@@ -543,7 +561,6 @@ saveFileBtn.addEventListener('click', async () => {
   }
 });
 
-/* ALTERAÇÃO DOS ÍCONES COM SVG VETORIAL */
 expandBtn.addEventListener('click', () => {
   isExpanded = !isExpanded;
 
