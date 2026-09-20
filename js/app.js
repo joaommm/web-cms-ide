@@ -239,10 +239,9 @@ async function loadRepositories() {
     repos.forEach(repo => {
       const li = document.createElement('li');
       li.innerHTML = `
-        <strong>${repo.name}</strong>
+        <a class="repo-link" onclick="selectRepo('${repo.name}')">📘 ${repo.name}</a>
         <div>
-          <button onclick="selectRepo('${repo.name}')">Abrir</button>
-          <button class="danger-btn" onclick="confirmDeleteRepo('${repo.name}')">Excluir</button>
+          <button class="danger-btn" style="padding: 4px 8px; font-size: 12px;" onclick="confirmDeleteRepo('${repo.name}')" title="Excluir Repositório">✖</button>
         </div>
       `;
       repoList.appendChild(li);
@@ -344,12 +343,20 @@ async function loadFiles(path = '') {
   fileTree.innerHTML = '';
 
   try {
-    const contents = await github.getContents(currentUser.login, currentRepo, path);
+    let contents = await github.getContents(currentUser.login, currentRepo, path);
     fileTree.innerHTML = '';
+
+    // ORDENAÇÃO: Pastas primeiro, depois arquivos (ordem alfabética)
+    contents.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      }
+      return a.type === 'dir' ? -1 : 1;
+    });
 
     if (path !== '') {
       const backLi = document.createElement('li');
-      backLi.innerHTML = '<strong>⬅️ .. (Voltar pasta)</strong>';
+      backLi.innerHTML = '<span class="tree-item-title"><strong>⬅️ .. (Voltar pasta)</strong></span>';
       backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', async () => {
         if (!checkUnsavedChanges()) return;
@@ -361,22 +368,32 @@ async function loadFiles(path = '') {
       fileTree.appendChild(backLi);
     }
 
-    contents.forEach(item => {
+    for (const item of contents) {
       const li = document.createElement('li');
-      const icon = item.type === 'dir' ? '📁' : '📄';
+      let icon = item.type === 'dir' ? '📁' : '📄';
 
       li.innerHTML = `
-        <span class="item-name">${icon} ${item.name}</span>
+        <span class="tree-item-title"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
         <div class="tree-item-actions" style="display: ${isDeleteMode ? 'flex' : 'none'};">
           <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir">✖</button>
         </div>
       `;
 
-      const nameSpan = li.querySelector('.item-name');
+      const titleSpan = li.querySelector('.tree-item-title');
       const deleteBtn = li.querySelector('button');
 
       if (item.type === 'dir') {
-        nameSpan.addEventListener('click', async () => {
+        // Checagem visual se a pasta está vazia ou recheada
+        github.getContents(currentUser.login, currentRepo, item.path).then(subContents => {
+          const iconSpan = li.querySelector('.item-icon');
+          if (iconSpan) {
+            // Filtra o arquivo oculto .gitkeep para determinar se a pasta realmente possui conteúdo
+            const realFiles = Array.isArray(subContents) ? subContents.filter(f => f.name !== '.gitkeep') : [];
+            iconSpan.textContent = realFiles.length > 0 ? '📂' : '📁';
+          }
+        }).catch(() => {});
+
+        titleSpan.addEventListener('click', async () => {
           if (!checkUnsavedChanges()) return;
           currentFolderPath = item.path;
           await loadFiles(currentFolderPath);
@@ -388,7 +405,7 @@ async function loadFiles(path = '') {
         });
 
       } else if (item.type === 'file') {
-        nameSpan.addEventListener('click', () => {
+        titleSpan.addEventListener('click', () => {
           if (!checkUnsavedChanges()) return;
           openFile(item.path);
         });
@@ -400,7 +417,7 @@ async function loadFiles(path = '') {
       }
 
       fileTree.appendChild(li);
-    });
+    }
   } catch (error) {
     fileTree.innerHTML = '<li>Erro ao carregar arquivos.</li>';
     showToast('Erro ao carregar estrutura de arquivos.', 'error');
