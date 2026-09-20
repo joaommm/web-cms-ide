@@ -17,25 +17,36 @@ const ICON_FILE = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 
 const ICON_REPO = `<svg class="icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0969da" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
-  initMonaco();
-  checkAuth();
   setupEventListeners();
+  checkAuth();
+  initMonacoSafely();
 });
 
-function initMonaco() {
-  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
-  require(['vs/editor/editor.main'], () => {
-    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
-      value: '// Selecione um arquivo para editar',
-      language: 'javascript',
-      theme: 'vs-dark',
-      automaticLayout: true
-    });
+function initMonacoSafely() {
+  const container = document.getElementById('monaco-container');
+  if (!container) return;
 
-    monacoEditor.onDidChangeModelContent(() => {
-      checkContentChange();
-    });
-  });
+  if (typeof require !== 'undefined') {
+    try {
+      require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
+      require(['vs/editor/editor.main'], () => {
+        monacoEditor = monaco.editor.create(container, {
+          value: '// Selecione um arquivo para editar',
+          language: 'javascript',
+          theme: 'vs-dark',
+          automaticLayout: true
+        });
+
+        monacoEditor.onDidChangeModelContent(() => {
+          checkContentChange();
+        });
+      }, (err) => {
+        console.warn('Monaco Editor não pôde ser carregado via CDN. Modo de texto simples ativo.');
+      });
+    } catch (e) {
+      console.warn('Erro ao inicializar Monaco Editor:', e);
+    }
+  }
 
   const mobileEditor = document.getElementById('mobile-editor');
   if (mobileEditor) {
@@ -46,16 +57,23 @@ function initMonaco() {
 }
 
 function showLoading(msg = 'Carregando...') {
-  document.getElementById('loading-text').innerText = msg;
-  document.getElementById('loading-overlay').style.display = 'flex';
+  const loadingText = document.getElementById('loading-text');
+  const overlay = document.getElementById('loading-overlay');
+  if (loadingText) loadingText.innerText = msg;
+  if (overlay) overlay.style.display = 'flex';
 }
 
 function hideLoading() {
-  document.getElementById('loading-overlay').style.display = 'none';
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
+  if (!container) {
+    alert(message);
+    return;
+  }
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerText = message;
@@ -65,34 +83,38 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-function checkAuth() {
+async function checkAuth() {
   const token = localStorage.getItem('gh_token');
   if (token) {
     showSection('dashboard-section');
-    loadRepositories();
+    await loadRepositories();
   } else {
     showSection('auth-section');
   }
 }
 
 function showSection(sectionId) {
-  document.getElementById('auth-section').style.display = 'none';
-  document.getElementById('dashboard-section').style.display = 'none';
-  document.getElementById('editor-section').style.display = 'none';
+  const authSec = document.getElementById('auth-section');
+  const dashSec = document.getElementById('dashboard-section');
+  const editSec = document.getElementById('editor-section');
 
-  document.getElementById(sectionId).style.display = 'block';
+  if (authSec) authSec.style.display = 'none';
+  if (dashSec) dashSec.style.display = 'none';
+  if (editSec) editSec.style.display = 'none';
+
+  const target = document.getElementById(sectionId);
+  if (target) target.style.display = 'block';
 
   const powerBtnWrapper = document.getElementById('logout-wrapper');
-  if (sectionId === 'auth-section') {
-    powerBtnWrapper.style.display = 'none';
-  } else {
-    powerBtnWrapper.style.display = 'flex';
+  if (powerBtnWrapper) {
+    powerBtnWrapper.style.display = (sectionId === 'auth-section') ? 'none' : 'flex';
   }
 }
 
 function getActiveEditorContent() {
-  if (window.innerWidth <= 768) {
-    return document.getElementById('mobile-editor').value;
+  if (window.innerWidth <= 768 || !monacoEditor) {
+    const mobileEditor = document.getElementById('mobile-editor');
+    return mobileEditor ? mobileEditor.value : '';
   } else {
     return monacoEditor ? monacoEditor.getValue() : '';
   }
@@ -102,7 +124,10 @@ function setActiveEditorContent(content) {
   if (monacoEditor) {
     monacoEditor.setValue(content);
   }
-  document.getElementById('mobile-editor').value = content;
+  const mobileEditor = document.getElementById('mobile-editor');
+  if (mobileEditor) {
+    mobileEditor.value = content;
+  }
   originalFileContent = content;
   checkContentChange();
 }
@@ -110,6 +135,8 @@ function setActiveEditorContent(content) {
 function checkContentChange() {
   const currentContent = getActiveEditorContent();
   const saveBtn = document.getElementById('save-file-btn');
+  if (!saveBtn) return;
+
   if (currentContent !== originalFileContent) {
     saveBtn.classList.remove('save-disabled');
     saveBtn.classList.add('save-active');
@@ -120,76 +147,108 @@ function checkContentChange() {
 }
 
 function setupEventListeners() {
-  document.getElementById('save-token-btn').addEventListener('click', () => {
-    const token = document.getElementById('github-token').value.trim();
-    if (!token) return showToast('Digite um token válido', 'error');
-    localStorage.setItem('gh_token', token);
-    showToast('Token salvo com sucesso!');
-    checkAuth();
-  });
+  const saveTokenBtn = document.getElementById('save-token-btn');
+  if (saveTokenBtn) {
+    saveTokenBtn.addEventListener('click', async () => {
+      const tokenInput = document.getElementById('github-token');
+      const token = tokenInput ? tokenInput.value.trim() : '';
+      if (!token) return showToast('Digite um token válido do GitHub', 'error');
+
+      localStorage.setItem('gh_token', token);
+      showToast('Autenticando...');
+      await checkAuth();
+    });
+  }
 
   const powerBtn = document.getElementById('power-btn');
   const popover = document.getElementById('logout-popover');
   
-  powerBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (popover.classList.contains('logout-popover-hidden')) {
-      popover.classList.remove('logout-popover-hidden');
-      popover.classList.add('logout-popover-visible');
-    } else {
-      popover.classList.remove('logout-popover-visible');
-      popover.classList.add('logout-popover-hidden');
-    }
-  });
+  if (powerBtn && popover) {
+    powerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (popover.classList.contains('logout-popover-hidden')) {
+        popover.classList.remove('logout-popover-hidden');
+        popover.classList.add('logout-popover-visible');
+      } else {
+        popover.classList.remove('logout-popover-visible');
+        popover.classList.add('logout-popover-hidden');
+      }
+    });
 
-  document.addEventListener('click', (e) => {
-    if (!popover.contains(e.target) && e.target !== powerBtn) {
-      popover.classList.remove('logout-popover-visible');
-      popover.classList.add('logout-popover-hidden');
-    }
-  });
+    document.addEventListener('click', (e) => {
+      if (!popover.contains(e.target) && e.target !== powerBtn) {
+        popover.classList.remove('logout-popover-visible');
+        popover.classList.add('logout-popover-hidden');
+      }
+    });
+  }
 
-  document.getElementById('logout-btn').addEventListener('click', () => {
-    localStorage.removeItem('gh_token');
-    popover.classList.remove('logout-popover-visible');
-    popover.classList.add('logout-popover-hidden');
-    showToast('Desconectado com sucesso');
-    checkAuth();
-  });
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('gh_token');
+      if (popover) {
+        popover.classList.remove('logout-popover-visible');
+        popover.classList.add('logout-popover-hidden');
+      }
+      showToast('Desconectado com sucesso');
+      checkAuth();
+    });
+  }
 
-  document.getElementById('back-to-repos-btn').addEventListener('click', () => {
-    showSection('dashboard-section');
-    loadRepositories();
-  });
+  const backBtn = document.getElementById('back-to-repos-btn');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      showSection('dashboard-section');
+      loadRepositories();
+    });
+  }
 
-  document.getElementById('new-file-btn').addEventListener('click', handleCreateFile);
-  document.getElementById('new-folder-btn').addEventListener('click', handleCreateFolder);
+  const newFileBtn = document.getElementById('new-file-btn');
+  if (newFileBtn) newFileBtn.addEventListener('click', handleCreateFile);
+
+  const newFolderBtn = document.getElementById('new-folder-btn');
+  if (newFolderBtn) newFolderBtn.addEventListener('click', handleCreateFolder);
   
   const toggleDeleteBtn = document.getElementById('toggle-delete-mode-btn');
-  toggleDeleteBtn.addEventListener('click', () => {
-    isDeleteMode = !isDeleteMode;
-    if (isDeleteMode) {
-      toggleDeleteBtn.classList.add('delete-mode-active');
-      showToast('Modo de exclusão ativado. Clique em um item para excluir.', 'error');
-    } else {
-      toggleDeleteBtn.classList.remove('delete-mode-active');
-      showToast('Modo de exclusão desativado.');
-    }
-  });
+  if (toggleDeleteBtn) {
+    toggleDeleteBtn.addEventListener('click', () => {
+      isDeleteMode = !isDeleteMode;
+      if (isDeleteMode) {
+        toggleDeleteBtn.classList.add('delete-mode-active');
+        showToast('Modo de exclusão ativado. Clique em um item para excluir.', 'error');
+      } else {
+        toggleDeleteBtn.classList.remove('delete-mode-active');
+        showToast('Modo de exclusão desativado.');
+      }
+    });
+  }
 
-  document.getElementById('save-file-btn').addEventListener('click', handleSaveFile);
-  document.getElementById('delete-file-btn').addEventListener('click', () => handleDeleteItem(currentFilePath, 'file'));
-  document.getElementById('preview-btn').addEventListener('click', handlePreview);
-  document.getElementById('close-preview-btn').addEventListener('click', () => {
-    document.getElementById('preview-modal').style.display = 'none';
-  });
+  const saveFileBtn = document.getElementById('save-file-btn');
+  if (saveFileBtn) saveFileBtn.addEventListener('click', handleSaveFile);
 
-  document.getElementById('expand-editor-btn').addEventListener('click', toggleExpandEditor);
+  const deleteFileBtn = document.getElementById('delete-file-btn');
+  if (deleteFileBtn) deleteFileBtn.addEventListener('click', () => handleDeleteItem(currentFilePath, 'file'));
+
+  const previewBtn = document.getElementById('preview-btn');
+  if (previewBtn) previewBtn.addEventListener('click', handlePreview);
+
+  const closePreviewBtn = document.getElementById('close-preview-btn');
+  if (closePreviewBtn) {
+    closePreviewBtn.addEventListener('click', () => {
+      const modal = document.getElementById('preview-modal');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  const expandEditorBtn = document.getElementById('expand-editor-btn');
+  if (expandEditorBtn) expandEditorBtn.addEventListener('click', toggleExpandEditor);
 }
 
 function toggleExpandEditor() {
   const container = document.getElementById('code-editor-area');
   const btn = document.getElementById('expand-editor-btn');
+  if (!container || !btn) return;
   
   if (container.classList.contains('fullscreen-editor')) {
     container.classList.remove('fullscreen-editor');
@@ -209,12 +268,13 @@ function toggleExpandEditor() {
 async function loadRepositories() {
   showLoading('Buscando repositórios...');
   try {
-    const repos = await fetchGitHub('/user/repos?per_page=100&sort=updated');
-    const repoList = document.getElementById('repo-list');
-    repoList.innerHTML = '';
-
     const user = await fetchGitHub('/user');
     currentRepoOwner = user.login;
+
+    const repos = await fetchGitHub('/user/repos?per_page=100&sort=updated');
+    const repoList = document.getElementById('repo-list');
+    if (!repoList) return;
+    repoList.innerHTML = '';
 
     repos.forEach(repo => {
       const li = document.createElement('li');
@@ -245,7 +305,9 @@ async function loadRepositories() {
     });
 
   } catch (err) {
-    showToast('Erro ao carregar repositórios: ' + err.message, 'error');
+    showToast('Erro ao validar Token ou carregar dados: ' + err.message, 'error');
+    localStorage.removeItem('gh_token');
+    showSection('auth-section');
   } finally {
     hideLoading();
   }
@@ -257,7 +319,7 @@ async function handleDeleteRepository(repoName) {
   try {
     await fetchGitHub(`/repos/${currentRepoOwner}/${repoName}`, 'DELETE');
     showToast(`Repositório "${repoName}" excluído com sucesso!`);
-    loadRepositories();
+    await loadRepositories();
   } catch (err) {
     showToast('Erro ao excluir repositório: ' + err.message, 'error');
   } finally {
@@ -270,7 +332,9 @@ async function openRepository(repoName) {
   currentFilePath = '';
   currentFileSha = '';
   setEditorActionsVisible(false);
-  document.getElementById('current-repo-title').innerText = `Repositório: ${repoName}`;
+  const repoTitle = document.getElementById('current-repo-title');
+  if (repoTitle) repoTitle.innerText = `Repositório: ${repoName}`;
+  
   showSection('editor-section');
   await loadTree();
 }
@@ -284,7 +348,7 @@ async function loadTree() {
     const treeSha = branchData.commit.commit.tree.sha;
     const treeData = await fetchGitHub(`/repos/${currentRepoOwner}/${currentRepoName}/git/trees/${treeSha}?recursive=1`);
     
-    currentTreeData = treeData.tree;
+    currentTreeData = treeData.tree || [];
     renderFileTree(currentTreeData);
   } catch (err) {
     showToast('Erro ao carregar árvore de arquivos: ' + err.message, 'error');
@@ -295,9 +359,9 @@ async function loadTree() {
 
 function renderFileTree(tree) {
   const fileTreeUI = document.getElementById('file-tree');
+  if (!fileTreeUI) return;
   fileTreeUI.innerHTML = '';
 
-  // 1. Mapeia caminhos de diretórios existentes para saber se estão vazios ou contêm arquivos
   const dirSet = new Set();
   tree.forEach(item => {
     if (item.type === 'tree') {
@@ -311,14 +375,12 @@ function renderFileTree(tree) {
     parentDirHasChildren[dirPath] = hasChild;
   });
 
-  // 2. Separa Pastas e Arquivos para manter pastas SEMPRE no topo
   const folders = tree.filter(item => item.type === 'tree');
   const files = tree.filter(item => item.type === 'blob');
 
   folders.sort((a, b) => a.path.localeCompare(b.path));
   files.sort((a, b) => a.path.localeCompare(b.path));
 
-  // Lista unificada: Primeiro Pastas, Depois Arquivos
   const sortedTree = [...folders, ...files];
 
   sortedTree.forEach(item => {
@@ -351,6 +413,7 @@ function renderFileTree(tree) {
 
 function setEditorActionsVisible(visible) {
   const actionsContainer = document.getElementById('editor-actions');
+  if (!actionsContainer) return;
   if (visible) {
     actionsContainer.classList.remove('action-hidden');
     actionsContainer.classList.add('action-visible');
@@ -369,9 +432,10 @@ async function loadFileContent(path, sha) {
 
     const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
     
-    document.getElementById('editing-file-path').innerText = `Arquivo: ${path}`;
+    const filePathLabel = document.getElementById('editing-file-path');
+    if (filePathLabel) filePathLabel.innerText = `Arquivo: ${path}`;
     
-    if (monacoEditor) {
+    if (monacoEditor && monaco.editor) {
       const extension = path.split('.').pop().toLowerCase();
       let lang = 'plaintext';
       if (['js', 'json', 'html', 'css', 'ts', 'php', 'py', 'md', 'xml', 'sql'].includes(extension)) {
@@ -494,14 +558,16 @@ async function handleDeleteItem(path, type = 'file') {
     if (path === currentFilePath || path.startsWith(currentFilePath)) {
       currentFilePath = '';
       currentFileSha = '';
-      document.getElementById('editing-file-path').innerText = 'Selecione um arquivo';
+      const filePathLabel = document.getElementById('editing-file-path');
+      if (filePathLabel) filePathLabel.innerText = 'Selecione um arquivo';
       setActiveEditorContent('');
       setEditorActionsVisible(false);
     }
 
     if (isDeleteMode) {
       isDeleteMode = false;
-      document.getElementById('toggle-delete-mode-btn').classList.remove('delete-mode-active');
+      const toggleDeleteBtn = document.getElementById('toggle-delete-mode-btn');
+      if (toggleDeleteBtn) toggleDeleteBtn.classList.remove('delete-mode-active');
     }
 
     await loadTree();
@@ -575,8 +641,9 @@ async function handlePreview() {
     }
 
     const previewFrame = document.getElementById('preview-frame');
-    previewFrame.srcdoc = doc.documentElement.outerHTML;
-    document.getElementById('preview-modal').style.display = 'flex';
+    const modal = document.getElementById('preview-modal');
+    if (previewFrame) previewFrame.srcdoc = doc.documentElement.outerHTML;
+    if (modal) modal.style.display = 'flex';
 
   } catch (err) {
     showToast('Erro ao carregar preview: ' + err.message, 'error');
@@ -623,7 +690,7 @@ async function fetchGitHub(endpoint, method = 'GET', body = null) {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || 'Ocorreu um erro na requisição ao GitHub.');
+    throw new Error(data.message || 'Erro ao comunicar com o GitHub. Verifique seu token.');
   }
 
   return data;
