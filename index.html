@@ -22,7 +22,7 @@
     <div class="preview-content">
       <div class="preview-header">
         <h3>Visualização ao Vivo</h3>
-        <button id="close-preview-btn" class="danger-btn">Fechar ✖</button>
+        <button id="close-preview-btn" class="danger-btn"><span class="btn-icon">✖</span> <span class="btn-label">Fechar</span></button>
       </div>
       <iframe id="preview-frame"></iframe>
     </div>
@@ -72,7 +72,9 @@
     <section id="editor-section" style="display: none;">
       <div class="editor-top-bar">
         <h2 id="current-repo-title"></h2>
-        <button id="back-to-repos-btn">⬅️   Voltar aos Repositórios</button>
+        <button id="back-to-repos-btn" title="Voltar aos Repositórios">
+          <span class="btn-icon">⬅️</span> <span class="btn-text">Voltar aos Repositórios</span>
+        </button>
       </div>
 
       <div class="workspace">
@@ -95,15 +97,21 @@
           <div class="editor-header" id="editor-header-bar">
             <h3 id="current-file-title">Nenhum arquivo selecionado</h3>
             <div class="editor-actions">
-              <button id="preview-btn" class="secondary-btn action-hidden">👁️ Preview  </button>
-              <button id="expand-btn" class="secondary-btn action-hidden">
+              <button id="preview-btn" class="secondary-btn action-hidden" title="Preview">
+                <span class="btn-icon">👁️</span> <span class="btn-label">Preview</span>
+              </button>
+              <button id="expand-btn" class="secondary-btn action-hidden" title="Expandir">
                 <span id="expand-icon" class="icon-svg">
                   <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
                 </span> 
-                <span id="expand-text">Expandir</span>
+                <span id="expand-text" class="btn-label">Expandir</span>
               </button>
-              <button id="delete-file-btn" class="danger-btn action-hidden">Excluir</button>
-              <button id="save-file-btn" class="save-disabled action-hidden" disabled>Salvar</button>
+              <button id="delete-file-btn" class="danger-btn action-hidden" title="Excluir">
+                <span class="btn-icon">🗑️</span> <span class="btn-label">Excluir</span>
+              </button>
+              <button id="save-file-btn" class="save-disabled action-hidden" disabled title="Salvar">
+                <span class="btn-icon">💾</span> <span class="btn-label">Salvar</span>
+              </button>
             </div>
           </div>
           
