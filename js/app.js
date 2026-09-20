@@ -44,7 +44,6 @@ const previewBtn = document.getElementById('preview-btn');
 const expandBtn = document.getElementById('expand-btn');
 const expandIcon = document.getElementById('expand-icon');
 const expandText = document.getElementById('expand-text');
-const saveText = document.getElementById('save-text');
 const fileExplorer = document.getElementById('file-explorer');
 const codeEditorArea = document.getElementById('code-editor-area');
 
@@ -95,16 +94,18 @@ function setActionButtonVisibility(button, visible) {
 
 function updateSaveButtonState(modified) {
   hasUnsavedChanges = modified;
+  const labelSpan = saveFileBtn.querySelector('.btn-label');
+  
   if (modified) {
     saveFileBtn.classList.remove('save-disabled');
     saveFileBtn.classList.add('save-active');
     saveFileBtn.disabled = false;
-    if (saveText) saveText.textContent = 'Salvar';
+    if (labelSpan) labelSpan.textContent = '* Salvar';
   } else {
     saveFileBtn.classList.remove('save-active');
     saveFileBtn.classList.add('save-disabled');
     saveFileBtn.disabled = true;
-    if (saveText) saveText.textContent = 'Salvar';
+    if (labelSpan) labelSpan.textContent = 'Salvar';
   }
 }
 
@@ -312,8 +313,8 @@ async function confirmDeleteRepo(repoName) {
 
 async function selectRepo(repoName) {
   currentRepo = repoName;
-  // Nome do repositório destacado em azul igual à listagem principal
-  currentRepoTitle.innerHTML = `Repositório: <span class="repo-title-name">${repoName}</span>`;
+  // Nome do repositório destacado em azul igual à lista principal
+  currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
 
   mainHeader.style.display = 'none';
   dashboardSection.style.display = 'none';
