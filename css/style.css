@@ -33,7 +33,7 @@ body {
   position: relative;
 }
 
-h1 { color: #24292e; }
+h1, h2, h3 { color: #24292e; }
 
 section { margin-top: 15px; }
 
@@ -67,7 +67,7 @@ button.danger-btn:hover { background-color: #a40e26 !important; }
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
-/* BOTÃO DE DESLIGAR VERMELHO E POPOVER FLUTUANTE À ESQUERDA */
+/* POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
 #logout-wrapper {
   position: relative;
   display: flex;
@@ -88,7 +88,6 @@ button.secondary-btn:hover { background-color: #0451a5; }
   background-color: #a40e26 !important;
 }
 
-/* Popover Flutuante alinhado à ESQUERDA do botão */
 #logout-popover {
   position: absolute;
   top: 50%;
@@ -124,7 +123,7 @@ button.secondary-btn:hover { background-color: #0451a5; }
   width: 100%;
 }
 
-/* Estabilidade dos Botões de Ação do Editor */
+/* VISIBILIDADE E ESTADOS DOS BOTÕES DE AÇÃO */
 .action-hidden {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -139,7 +138,6 @@ button.secondary-btn:hover { background-color: #0451a5; }
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-/* FIX DO BOTÃO DA LIXEIRA (MODO EXCLUSÃO) */
 button.delete-mode-active {
   background-color: #a40e26 !important;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
@@ -153,6 +151,19 @@ button.save-disabled {
 
 button.save-active {
   background-color: #2da44e !important;
+  cursor: pointer;
+  opacity: 1;
+}
+
+/* BOTÃO PREVIEW DESABILITADO (ESTILO CINZA SIMILAR AO SALVAR) */
+button.preview-disabled {
+  background-color: #8c959f !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button.preview-active {
+  background-color: #0969da !important;
   cursor: pointer;
   opacity: 1;
 }
@@ -188,7 +199,6 @@ button.save-active {
   gap: 10px;
 }
 
-/* AZUL MAIS CLARO E VIVO PARA OS REPOSITÓRIOS */
 .repo-link {
   color: #0969da;
   font-weight: 600;
@@ -205,7 +215,7 @@ button.save-active {
   color: #218bff;
 }
 
-/* TAMANHO E ESTILO DA ÁRVORE DE ARQUIVOS/PASTAS */
+/* ÁRVORE DE ARQUIVOS */
 #file-tree li {
   padding: 10px 12px;
   border-bottom: 1px solid #f0f0f0;
@@ -226,7 +236,6 @@ button.save-active {
   font-size: 15px;
 }
 
-/* DISTINÇÃO DE NEGRITO: PASTAS SIM, ARQUIVOS NÃO */
 .is-folder {
   font-weight: 700;
   color: #24292e;
@@ -280,27 +289,34 @@ button.save-active {
   flex-direction: column;
 }
 
+/* HEADER DO EDITOR E ALINHAMENTO DOS BOTÕES */
 .editor-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   min-height: 42px;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
+/* TÍTULO DESTACADO DO ARQUIVO SELECIONADO */
 #current-file-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  color: #24292e;
   word-break: break-all;
 }
 
+/* BOTÕES DE AÇÃO FIXADOS À DIREITA */
 .editor-actions {
   display: flex;
   gap: 6px;
   align-items: center;
   min-height: 36px;
+  margin-left: auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .icon-svg {
@@ -317,7 +333,9 @@ button.save-active {
   border-radius: 4px;
 }
 
+/* CAIXA DE TEXTO MOBILE */
 #mobile-editor {
+  display: none; /* Inicia oculto e só aparece quando há arquivo aberto */
   width: 100%;
   height: 400px;
   min-height: 300px;
@@ -327,7 +345,7 @@ button.save-active {
   border: 1px solid #ccc;
   border-radius: 4px;
   resize: vertical;
-  margin-top: 10px;
+  margin-top: 4px; /* Aproximado dos botões superiormente */
 }
 
 /* MODO FULLSCREEN (EXPANDIDO) */
@@ -373,24 +391,25 @@ button.save-active {
   }
 }
 
-/* MOBILE - AJUSTES DE ESPAÇAMENTO */
+/* MOBILE - AJUSTES DE ESPAÇAMENTO E ALINHAMENTO */
 @media (max-width: 768px) {
   #monaco-container {
     display: none !important;
   }
 
-  #mobile-editor {
-    display: block !important;
-  }
-
   .code-editor-area {
-    margin-top: 25px;
+    margin-top: 15px;
     border-top: 1px dashed #e1e4e8;
-    padding-top: 20px;
+    padding-top: 15px;
   }
 
   .editor-header {
-    margin-bottom: 15px;
+    margin-bottom: 6px;
+  }
+
+  .editor-actions {
+    width: 100%;
+    justify-content: flex-end; /* Garante alinhamento total à direita */
   }
 
   .fullscreen-editor #mobile-editor {
