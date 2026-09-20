@@ -238,7 +238,6 @@ async function loadRepositories() {
     repoList.innerHTML = '';
     repos.forEach(repo => {
       const li = document.createElement('li');
-      // REMOVIDO O ÍCONE DA FRENTE DO NOME DO REPOSITÓRIO
       li.innerHTML = `
         <a class="repo-link" onclick="selectRepo('${repo.name}')">${repo.name}</a>
         <div>
@@ -327,6 +326,7 @@ async function selectRepo(repoName) {
   await loadFiles(currentFolderPath);
 }
 
+// FIX CORRIGIDO PARA O BOTÃO DA LIXEIRA DO EXPLORER
 toggleDeleteModeBtn.addEventListener('click', () => {
   isDeleteMode = !isDeleteMode;
   toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
@@ -346,7 +346,6 @@ async function loadFiles(path = '') {
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
     
-    // Tratamento para quando a pasta atual foi removida por ficar vazia no GitHub
     if (!Array.isArray(contents)) {
       contents = [];
     }
@@ -363,7 +362,7 @@ async function loadFiles(path = '') {
 
     if (path !== '') {
       const backLi = document.createElement('li');
-      backLi.innerHTML = '<span class="tree-item-title"><strong>⬅️ .. (Voltar pasta)</strong></span>';
+      backLi.innerHTML = '<span class="tree-item-title is-folder">⬅️ .. (Voltar pasta)</span>';
       backLi.style.cursor = 'pointer';
       backLi.addEventListener('click', async () => {
         if (!checkUnsavedChanges()) return;
@@ -378,9 +377,10 @@ async function loadFiles(path = '') {
     for (const item of contents) {
       const li = document.createElement('li');
       let icon = item.type === 'dir' ? '📁' : '📄';
+      const textClass = item.type === 'dir' ? 'is-folder' : 'is-file';
 
       li.innerHTML = `
-        <span class="tree-item-title"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
+        <span class="tree-item-title ${textClass}"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
         <div class="tree-item-actions" style="display: ${isDeleteMode ? 'flex' : 'none'};">
           <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir">✖</button>
         </div>
@@ -424,7 +424,6 @@ async function loadFiles(path = '') {
       fileTree.appendChild(li);
     }
   } catch (error) {
-    // Se a pasta não for encontrada (ex: após apagar o único arquivo dela), recua para o pai
     if (path !== '') {
       const pathParts = path.split('/');
       pathParts.pop();
@@ -481,8 +480,6 @@ async function deleteFileByPath(filePath, sha) {
     }
 
     showToast('Arquivo excluído com sucesso!');
-
-    // Tenta recarregar a pasta atual; se a pasta deixou de existir no GitHub por ter ficado vazia, o handler de erro do loadFiles fará o recuo automático com segurança.
     await loadFiles(currentFolderPath);
 
   } catch (error) {
