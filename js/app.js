@@ -8,6 +8,7 @@ let currentFolderPath = '';
 let monacoEditor = null;
 let isExpanded = false;
 let isDeleteMode = false;
+let isDarkMode = false;
 const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
@@ -31,10 +32,20 @@ const newFolderBtn = document.getElementById('new-folder-btn');
 const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
 
+const headerActionsWrapper = document.getElementById('header-actions-wrapper');
+
+// ELEMENTOS DE CONFIGURAÇÃO E LOGOUT
+const settingsWrapper = document.getElementById('settings-wrapper');
+const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+const settingsPopover = document.getElementById('settings-popover');
+const popoverThemeBtn = document.getElementById('popover-theme-btn');
+
 const logoutWrapper = document.getElementById('logout-wrapper');
 const logoutPopover = document.getElementById('logout-popover');
 const powerToggleBtn = document.getElementById('power-toggle-btn');
 const logoutBtn = document.getElementById('logout-btn');
+
+const loginThemeBtn = document.getElementById('login-theme-btn');
 
 const backToReposBtn = document.getElementById('back-to-repos-btn');
 const currentPathDisplay = document.getElementById('current-path-display');
@@ -81,6 +92,27 @@ function showToast(message, type = 'success') {
     toast.remove();
   }, 3500);
 }
+
+// GERENCIAMENTO DE TEMA (CLARO / ESCURO)
+function toggleTheme() {
+  isDarkMode = !isDarkMode;
+  if (isDarkMode) {
+    document.body.classList.add('dark-mode');
+    loginThemeBtn.textContent = '☀️';
+    popoverThemeBtn.textContent = '☀️ Claro';
+    if (monacoEditor) monaco.editor.setTheme('vs-dark');
+    localStorage.setItem('theme', 'dark');
+  } else {
+    document.body.classList.remove('dark-mode');
+    loginThemeBtn.textContent = '🌙';
+    popoverThemeBtn.textContent = '🌙 Escuro';
+    if (monacoEditor) monaco.editor.setTheme('vs');
+    localStorage.setItem('theme', 'light');
+  }
+}
+
+loginThemeBtn.addEventListener('click', toggleTheme);
+popoverThemeBtn.addEventListener('click', toggleTheme);
 
 function setActionButtonVisibility(button, visible) {
   if (visible) {
@@ -134,7 +166,7 @@ if (!isMobile) {
     monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
       value: '// Selecione um arquivo para começar a editar...',
       language: 'plaintext',
-      theme: 'vs-dark',
+      theme: isDarkMode ? 'vs-dark' : 'vs',
       automaticLayout: true
     });
 
@@ -155,6 +187,12 @@ mobileEditor.addEventListener('input', () => {
 });
 
 window.addEventListener('load', () => {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    isDarkMode = false; // Alterna para carregar como dark
+    toggleTheme();
+  }
+
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
     tokenInput.value = savedToken;
@@ -167,7 +205,7 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
-    logoutWrapper.style.display = 'flex';
+    headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
@@ -191,7 +229,7 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
-    logoutWrapper.style.display = 'flex';
+    headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast('Conectado com sucesso!');
   } catch (error) {
@@ -201,22 +239,45 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
+// TOGGLES DOS POPOVERS (CONFIGURAÇÕES E POWER)
+settingsToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  logoutPopover.classList.remove('popover-visible');
+  logoutPopover.classList.add('popover-hidden');
+
+  const isVisible = settingsPopover.classList.contains('popover-visible');
+  if (isVisible) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  } else {
+    settingsPopover.classList.remove('popover-hidden');
+    settingsPopover.classList.add('popover-visible');
+  }
+});
+
 powerToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  const isVisible = logoutPopover.classList.contains('logout-popover-visible');
+  settingsPopover.classList.remove('popover-visible');
+  settingsPopover.classList.add('popover-hidden');
+
+  const isVisible = logoutPopover.classList.contains('popover-visible');
   if (isVisible) {
-    logoutPopover.classList.remove('logout-popover-visible');
-    logoutPopover.classList.add('logout-popover-hidden');
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
   } else {
-    logoutPopover.classList.remove('logout-popover-hidden');
-    logoutPopover.classList.add('logout-popover-visible');
+    logoutPopover.classList.remove('popover-hidden');
+    logoutPopover.classList.add('popover-visible');
   }
 });
 
 document.addEventListener('click', (e) => {
+  if (!settingsWrapper.contains(e.target)) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  }
   if (!logoutWrapper.contains(e.target)) {
-    logoutPopover.classList.remove('logout-popover-visible');
-    logoutPopover.classList.add('logout-popover-hidden');
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
   }
 });
 
