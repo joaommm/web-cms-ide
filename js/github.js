@@ -172,23 +172,52 @@ class GitHubAPI {
     return false;
   }
 
-  async waitForLatestPageBuild(owner, repo, maxWaitMs = 120000) {
+  async getWorkflowRuns(owner, repo) {
+    const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/actions/runs?per_page=5`), {
+      headers: this.headers,
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('Não foi possível obter o status de deployment.');
+    return await response.json();
+  }
+
+  async trackPageDeployment(owner, repo, onProgress, maxWaitMs = 120000) {
     const startTime = Date.now();
+    let initialRunId = null;
+
+    // Tenta identificar o workflow mais recente antes de começar a aguardar novas atualizações
+    try {
+      const runs = await this.getWorkflowRuns(owner, repo);
+      if (runs.workflow_runs && runs.workflow_runs.length > 0) {
+        initialRunId = runs.workflow_runs[0].id;
+      }
+    } catch (e) {}
+
     while (Date.now() - startTime < maxWaitMs) {
       try {
-        const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/pages/builds/latest`), {
-          headers: this.headers,
-          cache: 'no-store'
-        });
-        if (response.ok) {
-          const build = await response.json();
-          if (build.status === 'built') {
-            return true;
+        const runs = await this.getWorkflowRuns(owner, repo);
+        if (runs.workflow_runs && runs.workflow_runs.length > 0) {
+          const latestRun = runs.workflow_runs[0];
+
+          if (latestRun.status === 'queued') {
+            onProgress('⏳ Aguardando na fila de publicação do GitHub...');
+          } else if (latestRun.status === 'in_progress') {
+            onProgress('⚙️ Compilando alterações do site no GitHub Pages...');
+          } else if (latestRun.status === 'completed') {
+            if (latestRun.conclusion === 'success') {
+              return true;
+            } else {
+              throw new Error(`Publicação finalizada com status: ${latestRun.conclusion}`);
+            }
           }
         }
-      } catch (e) {}
-      await new Promise(res => setTimeout(res, 2500));
+      } catch (e) {
+        if (e.message.includes('Publicação finalizada')) throw e;
+      }
+
+      await new Promise(res => setTimeout(res, 3000));
     }
-    return false;
+
+    throw new Error('Tempo limite excedido aguardando a publicação do site.');
   }
-} 
+}
