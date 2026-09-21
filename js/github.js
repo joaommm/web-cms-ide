@@ -133,37 +133,32 @@ class GitHubAPI {
     }
   }
 
-  // --- MÉTODOS DE DUPLA VERIFICAÇÃO (POLLING) ---
+  // --- MÉTODOS DE POLLING E CHECAGEM DE WORKFLOW ---
 
-  // Aguarda até que o arquivo/pasta exista no GitHub
-  async waitForPathExist(owner, repo, path, retries = 10, delay = 800) {
+  async waitForPathExist(owner, repo, path, retries = 12, delay = 800) {
     for (let i = 0; i < retries; i++) {
       try {
         await this.getContents(owner, repo, path);
-        return true; // Encontrou no GitHub
+        return true;
       } catch (e) {
-        // Ainda não propagou, aguarda e tenta novamente
         await new Promise(res => setTimeout(res, delay));
       }
     }
     return false;
   }
 
-  // Aguarda até que o arquivo/pasta seja removido do GitHub
-  async waitForPathNotExist(owner, repo, path, retries = 10, delay = 800) {
+  async waitForPathNotExist(owner, repo, path, retries = 12, delay = 800) {
     for (let i = 0; i < retries; i++) {
       try {
         await this.getContents(owner, repo, path);
-        // Se ainda respondeu com sucesso, aguarda sumir
         await new Promise(res => setTimeout(res, delay));
       } catch (e) {
-        return true; // Sumiu do GitHub
+        return true;
       }
     }
     return false;
   }
 
-  // Aguarda um novo repositório aparecer na lista do usuário
   async waitForRepoExist(repoName, retries = 10, delay = 1000) {
     for (let i = 0; i < retries; i++) {
       try {
@@ -173,6 +168,26 @@ class GitHubAPI {
         }
       } catch (e) {}
       await new Promise(res => setTimeout(res, delay));
+    }
+    return false;
+  }
+
+  async waitForLatestPageBuild(owner, repo, maxWaitMs = 120000) {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+      try {
+        const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/pages/builds/latest`), {
+          headers: this.headers,
+          cache: 'no-store'
+        });
+        if (response.ok) {
+          const build = await response.json();
+          if (build.status === 'built') {
+            return true;
+          }
+        }
+      } catch (e) {}
+      await new Promise(res => setTimeout(res, 2500));
     }
     return false;
   }
