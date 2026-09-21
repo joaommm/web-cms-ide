@@ -324,10 +324,7 @@ newRepoBtn.addEventListener('click', async () => {
   showLoading('Criando e aguardando confirmação do GitHub...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    
-    // Aguarda até que o GitHub confirme a criação
     await github.waitForRepoExist(repoName);
-
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -347,7 +344,6 @@ async function confirmDeleteRepo(repoName) {
   try {
     await github.deleteRepository(currentUser.login, repoName);
     
-    // Aguarda até o repositório sumir da lista
     let attempts = 0;
     while (attempts < 10) {
       await new Promise(r => setTimeout(r, 800));
@@ -504,8 +500,6 @@ async function deleteFolder(folderPath, folderName) {
   showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
   try {
     await github.deleteFolder(currentUser.login, currentRepo, folderPath);
-    
-    // Dupla verificação até a pasta sumir do GitHub
     await github.waitForPathNotExist(currentUser.login, currentRepo, folderPath);
 
     showToast('Pasta excluída com sucesso!');
@@ -523,8 +517,6 @@ async function deleteFileByPath(filePath, sha) {
   showLoading('Excluindo arquivo e sincronizando...');
   try {
     await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
-
-    // Dupla verificação até o arquivo sumir
     await github.waitForPathNotExist(currentUser.login, currentRepo, filePath);
 
     if (currentFile && currentFile.path === filePath) {
@@ -605,7 +597,7 @@ async function openFile(filePath) {
   }
 }
 
-// SALVAMENTO DE ARQUIVO
+// SALVAMENTO DE ARQUIVO COM VERIFICAÇÃO DE DADOS E MONITORAMENTO DE BUILD
 saveFileBtn.addEventListener('click', async () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
@@ -623,7 +615,7 @@ saveFileBtn.addEventListener('click', async () => {
 
     const newSha = result.content.sha;
     
-    // Aguarda ativamente até que a busca traga exatamente a versão do novo SHA
+    // Polling rápido para confirmar a atualização do SHA do arquivo na API
     let attempts = 0;
     while (attempts < 10) {
       await new Promise(r => setTimeout(r, 800));
@@ -637,8 +629,9 @@ saveFileBtn.addEventListener('click', async () => {
     currentFile.sha = newSha;
     originalFileContent = newContent;
     updateSaveButtonState(false);
-    
-    showToast('Alterações salvas e sincronizadas!');
+
+    showToast('Arquivo salvo no repositório com sucesso!');
+    await loadFiles(currentFolderPath);
 
   } catch (error) {
     showToast('Erro ao salvar: ' + error.message, 'error');
@@ -702,7 +695,6 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
-    // Dupla verificação até o arquivo existir
     await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Arquivo criado com sucesso!');
@@ -732,7 +724,6 @@ newFolderBtn.addEventListener('click', async () => {
       `Criada pasta ${folderName} via Web CMS`
     );
 
-    // Dupla verificação até a pasta/arquivo .gitkeep existir
     await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Pasta criada com sucesso!');
