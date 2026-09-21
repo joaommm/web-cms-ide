@@ -7,23 +7,31 @@ class GitHubAPI {
   get headers() {
     return {
       'Authorization': `token ${this.token}`,
-      'Accept': 'application/vnd.github.v3+json'
+      'Accept': 'application/vnd.github.v3+json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
     };
   }
 
+  // Função utilitária para garantir que o parâmetro anti-cache ?t= timestamp seja anexado corretamente
+  buildUrl(endpoint) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    return `${this.baseUrl}${endpoint}${separator}_nocache=${Date.now()}`;
+  }
+
   async getUser() {
-    const response = await fetch(`${this.baseUrl}/user?t=${Date.now()}`, { 
+    const response = await fetch(this.buildUrl('/user'), { 
       headers: this.headers,
-      cache: 'no-store'
+      cache: 'reload'
     });
     if (!response.ok) throw new Error('Token inválido ou expirado.');
     return await response.json();
   }
 
   async getRepositories() {
-    const response = await fetch(`${this.baseUrl}/user/repos?sort=updated&t=${Date.now()}`, { 
+    const response = await fetch(this.buildUrl('/user/repos?sort=updated'), { 
       headers: this.headers,
-      cache: 'no-store'
+      cache: 'reload'
     });
     if (!response.ok) throw new Error('Erro ao carregar repositórios.');
     return await response.json();
@@ -58,27 +66,29 @@ class GitHubAPI {
   }
 
   async getContents(owner, repo, path = '') {
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { 
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/contents/${cleanPath}`), { 
       headers: this.headers,
-      cache: 'no-store'
+      cache: 'reload'
     });
     if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
     return await response.json();
   }
 
   async getFile(owner, repo, path) {
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, { 
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/contents/${cleanPath}`), { 
       headers: this.headers,
-      cache: 'no-store'
+      cache: 'reload'
     });
     if (!response.ok) throw new Error('Erro ao carregar o arquivo.');
     return await response.json();
   }
 
   async updateFile(owner, repo, path, content, sha, message = 'Atualizado via Web CMS') {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(content);
-    const base64Content = btoa(String.fromCharCode(...data));
+    // Tratamento robusto para codificação UTF-8 em Base64
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const base64Content = btoa(unescape(encodeURIComponent(content)));
 
     const body = {
       message: message,
@@ -86,7 +96,7 @@ class GitHubAPI {
     };
     if (sha) body.sha = sha;
 
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, {
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${cleanPath}`, {
       method: 'PUT',
       headers: this.headers,
       body: JSON.stringify(body)
@@ -97,12 +107,13 @@ class GitHubAPI {
   }
 
   async deleteFile(owner, repo, path, sha, message = 'Excluído via Web CMS') {
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     const body = {
       message: message,
       sha: sha
     };
 
-    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`, {
+    const response = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/contents/${cleanPath}`, {
       method: 'DELETE',
       headers: this.headers,
       body: JSON.stringify(body)
@@ -112,7 +123,6 @@ class GitHubAPI {
     return await response.json();
   }
 
-  // Função para excluir todos os arquivos de uma pasta recursivamente
   async deleteFolder(owner, repo, folderPath) {
     const contents = await this.getContents(owner, repo, folderPath);
 
