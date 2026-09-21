@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Página em Construção | Saúde Mental</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<style>
+    /* --- VARIÁVEIS --- */
+    :root {
+        --brand-color-light: #3f87a6; 
+        --brand-color-dark: #23546a;
+        --bg-light: #f0f9ff;
+        --text-light: #333;
+        --card-bg-light: #ffffff;
+        
+        --bg-dark: #121212;
+        --text-dark: #e5e7eb;
+        --card-bg-dark: #1f1f1f;
+    }
+
+    /* --- RESET --- */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Nunito', sans-serif;
+        background-color: var(--bg-light);
+        color: var(--text-light);
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        overflow: hidden; /* Evita scroll desnecessário */
+        transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* --- CONTAINER PRINCIPAL (CARD) --- */
+    .maintenance-card {
+        background-color: var(--card-bg-light);
+        width: 100%;
+        max-width: 1000px;
+        border-radius: 30px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        display: flex;
+        overflow: hidden;
+        position: relative;
+        min-height: 600px;
+        transition: background-color 0.3s, box-shadow 0.3s;
+    }
+
+    /* --- LADO ESQUERDO (TEXTO) --- */
+    .content-side {
+        flex: 1;
+        padding: 60px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        z-index: 2;
+    }
+
+    .logo-mini {
+        width: 60px;
+        margin-bottom: 40px;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 20px;
+        line-height: 1.2;
+        color: var(--brand-color-dark);
+    }
+
+    p {
+        font-size: 1.1rem;
+        margin-bottom: 30px;
+        color: #666;
+        max-width: 400px;
+        line-height: 1.6;
+    }
+
+    /* Botão de Voltar */
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background-color: var(--brand-color-light);
+        color: white;
+        text-decoration: none;
+        padding: 15px 35px;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 20px rgba(63, 135, 166, 0.3);
+    }
+
+    .back-btn:hover {
+        background-color: var(--brand-color-dark);
+        transform: translateY(-3px);
+        box-shadow: 0 15px 25px rgba(63, 135, 166, 0.4);
+    }
+
+    /* --- LADO DIREITO (IMAGEM/ARTE) --- */
+    .image-side {
+        flex: 1;
+        background-color: #e0f2f7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Círculos decorativos no fundo */
+    .circle-bg {
+        position: absolute;
+        border-radius: 50%;
+        background-color: rgba(255,255,255,0.3);
+    }
+    .c1 { width: 300px; height: 300px; top: -50px; right: -50px; }
+    .c2 { width: 150px; height: 150px; bottom: 50px; left: 50px; }
+
+    .main-illustration {
+        width: 80%;
+        max-width: 400px;
+        height: auto;
+        animation: float 6s ease-in-out infinite;
+        z-index: 2;
+        filter: drop-shadow(0 15px 15px rgba(0,0,0,0.1));
+    }
+
+    /* Animação de flutuação */
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+        100% { transform: translateY(0px); }
+    }
+
+    /* --- DARK MODE --- */
+    body.dark {
+        background-color: var(--bg-dark);
+        color: var(--text-dark);
+    }
+
+    body.dark .maintenance-card {
+        background-color: var(--card-bg-dark);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        border: 1px solid #333;
+    }
+
+    body.dark h1 { color: #f3f4f6; }
+    body.dark p { color: #9ca3af; }
+
+    body.dark .image-side {
+        background-color: #232323; /* Fundo da imagem mais escuro */
+    }
+    
+    body.dark .circle-bg {
+        background-color: rgba(255,255,255,0.05);
+    }
+
+    body.dark .logo-mini {
+        filter: brightness(0) invert(1);
+    }
+
+    /* --- RESPONSIVIDADE (MOBILE) --- */
+    @media (max-width: 900px) {
+        .maintenance-card {
+            flex-direction: column-reverse; /* Imagem vai para cima no mobile */
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .content-side {
+            padding: 40px 30px;
+            align-items: center;
+            text-align: center;
+            flex: 0 0 auto;
+        }
+
+        .image-side {
+            padding: 40px;
+            flex: 0 0 300px; /* Altura fixa para a área da imagem */
+        }
+
+        h1 { font-size: 1.8rem; }
+        p { font-size: 1rem; }
+        
+        .logo-mini { margin-bottom: 20px; }
+    }
+</style>
+</head>
+<body>
+
+    <div class="maintenance-card">
+        <div class="content-side">
+            <img class="logo-mini" src="https://cdn-icons-png.flaticon.com/512/2966/2966486.png" alt="Logo">
+            
+            <h1>Em Construção</h1>
+            <p>Estamos trabalhando com carinho nesta funcionalidade. <br>
+            Em breve, esta área estará disponível com novidades pensadas para o seu bem-estar.</p>
+            
+            <a href="https://sites.google.com/aluno.laboro.edu.br/pagina-de-saude-mental-teste-/index?authuser=0" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Voltar para o Início
+            </a>
+        </div>
+
+        <div class="image-side">
+            <div class="circle-bg c1"></div>
+            <div class="circle-bg c2"></div>
+            <img src="https://cdn-icons-png.flaticon.com/512/7920/7920908.png" alt="Trabalhando no site" class="main-illustration">
+        </div>
+    </div>
+
+    <script>
+        // Script simples para detectar e aplicar o Dark Mode
+        // baseado na preferência salva no localStorage da página principal
+        document.addEventListener('DOMContentLoaded', function() {
+            const DARK_MODE_KEY = 'appDarkModeState';
+            const savedTheme = localStorage.getItem(DARK_MODE_KEY);
+            
+            if (savedTheme === 'enabled') {
+                document.body.classList.add('dark');
+            }
+        });
+    </script>
+
+</body>
+</html>
