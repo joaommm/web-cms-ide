@@ -32,6 +32,7 @@ const newFolderBtn = document.getElementById('new-folder-btn');
 const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
 const newRepoBtn = document.getElementById('new-repo-btn');
 
+const loginHeaderTools = document.getElementById('login-header-tools');
 const headerActionsWrapper = document.getElementById('header-actions-wrapper');
 
 // ELEMENTOS DE CONFIGURAÇÃO E LOGOUT
@@ -93,20 +94,18 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-// GERENCIAMENTO DE TEMA (CLARO / ESCURO)
+// GERENCIAMENTO DE TEMA DA PÁGINA
 function toggleTheme() {
   isDarkMode = !isDarkMode;
   if (isDarkMode) {
     document.body.classList.add('dark-mode');
     loginThemeBtn.textContent = '☀️';
     popoverThemeBtn.textContent = '☀️ Claro';
-    if (monacoEditor) monaco.editor.setTheme('vs-dark');
     localStorage.setItem('theme', 'dark');
   } else {
     document.body.classList.remove('dark-mode');
     loginThemeBtn.textContent = '🌙';
     popoverThemeBtn.textContent = '🌙 Escuro';
-    if (monacoEditor) monaco.editor.setTheme('vs');
     localStorage.setItem('theme', 'light');
   }
 }
@@ -160,13 +159,14 @@ function getLanguageFromFilename(filename) {
   }
 }
 
+// INICIALIZAÇÃO DO EDITOR MONACO FIXADO SEMPRE NO TEMA ESCURO (VS-DARK)
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
     monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
       value: '// Selecione um arquivo para começar a editar...',
       language: 'plaintext',
-      theme: isDarkMode ? 'vs-dark' : 'vs',
+      theme: 'vs-dark', // Sempre escuro estilo VS Code
       automaticLayout: true
     });
 
@@ -189,7 +189,7 @@ mobileEditor.addEventListener('input', () => {
 window.addEventListener('load', () => {
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') {
-    isDarkMode = false; // Alterna para carregar como dark
+    isDarkMode = false;
     toggleTheme();
   }
 
@@ -205,6 +205,7 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
+    loginHeaderTools.style.display = 'none';
     headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
@@ -229,6 +230,7 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
+    loginHeaderTools.style.display = 'none';
     headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast('Conectado com sucesso!');
@@ -239,7 +241,7 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-// TOGGLES DOS POPOVERS (CONFIGURAÇÕES E POWER)
+// POPOVERS
 settingsToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   logoutPopover.classList.remove('popover-visible');
