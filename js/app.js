@@ -98,32 +98,38 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DE DEPLOYMENT SEM TIMEOUT E COM PREVENÇÃO DE FALSO POSITIVO
+// MONITORAMENTO INTELIGENTE COM VERIFICAÇÃO DE PAGES ATIVO
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  const toast = showToast('🚀 Alteração enviada. Aguardando publicação oficial do GitHub...', 'info', 0);
-
   try {
+    // 1. Checa se o GitHub Pages está ativado neste repositório
+    const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
+
+    if (!isPagesEnabled) {
+      // Se não estiver ativo, avisa e encerra sem iniciar loop de verificação
+      showToast('💾 Alterações salvas no repositório! <br><small>💡 Dica: O GitHub Pages não está ativado neste repositório para gerar o site público.</small>', 'info', 7000);
+      return;
+    }
+
+    // 2. Se o Pages estiver ativo, monitora o deploy
+    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
+
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
     });
 
-    // Pequena pausa técnica de 3s extra para garantir a propagação na CDN do GitHub
-    toast.innerHTML = '🔄 Finalizando sincronização nos servidores do GitHub...';
+    // Pausa técnica para propagação global da CDN
+    toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 3000));
 
     toast.className = 'toast success';
-    toast.innerHTML = '✨ Site publicado com sucesso! (Se não visualizar, use Ctrl+F5 para limpa cache)';
+    toast.innerHTML = '✨ Site publicado e atualizado com sucesso! <br><small>(Use Ctrl+F5 caso o navegador exiba a versão em cache)</small>';
     
-    // Exibe por 30 segundos
     setTimeout(() => toast.remove(), 30000);
 
   } catch (error) {
-    // Caso o repositório não tenha GitHub Pages ativo
-    toast.className = 'toast success';
-    toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
-    setTimeout(() => toast.remove(), 5000);
+    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
   }
 }
 
