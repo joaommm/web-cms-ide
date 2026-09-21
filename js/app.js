@@ -313,7 +313,6 @@ async function confirmDeleteRepo(repoName) {
 
 async function selectRepo(repoName) {
   currentRepo = repoName;
-  // Nome do repositório destacado em azul igual à lista principal
   currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
 
   mainHeader.style.display = 'none';
@@ -481,7 +480,7 @@ async function deleteFileByPath(filePath, sha) {
       setActionButtonVisibility(deleteFileBtn, false);
       setActionButtonVisibility(expandBtn, false);
       setActionButtonVisibility(previewBtn, false);
-      currentFileTitle.textContent = 'Nenhum arquivo selecionado';
+      currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
     }
 
     showToast('Arquivo excluído com sucesso!');
@@ -508,7 +507,8 @@ async function openFile(filePath) {
     };
 
     originalFileContent = decodedContent;
-    currentFileTitle.textContent = `Arquivo: ${fileData.name}`;
+    // Título ajustado para manter "Arquivo:" em negrito e o nome em fonte normal
+    currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
 
     if (isMobile) {
       mobileEditor.value = decodedContent;
@@ -716,6 +716,6 @@ backToReposBtn.addEventListener('click', async () => {
   setActionButtonVisibility(deleteFileBtn, false);
   setActionButtonVisibility(expandBtn, false);
   setActionButtonVisibility(previewBtn, false);
-  currentFileTitle.textContent = 'Nenhum arquivo selecionado';
+  currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
   await loadRepositories();
 });
