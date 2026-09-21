@@ -82,16 +82,25 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', onClickCallback = null, duration = 3500) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  toast.innerHTML = message;
+  
+  if (onClickCallback) {
+    toast.style.cursor = 'pointer';
+    toast.addEventListener('click', onClickCallback);
+  }
 
   toastContainer.appendChild(toast);
 
-  setTimeout(() => {
-    toast.remove();
-  }, 3500);
+  if (duration > 0) {
+    setTimeout(() => {
+      toast.remove();
+    }, duration);
+  }
+
+  return toast;
 }
 
 // GERENCIAMENTO DE TEMA DA PÁGINA
@@ -166,7 +175,7 @@ if (!isMobile) {
     monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
       value: '// Selecione um arquivo para começar a editar...',
       language: 'plaintext',
-      theme: 'vs-dark', // Sempre escuro estilo VS Code
+      theme: 'vs-dark',
       automaticLayout: true
     });
 
@@ -610,10 +619,11 @@ async function openFile(filePath) {
   }
 }
 
+// OTIMIZAÇÃO: SALVAMENTO E SINCRONIZAÇÃO FORÇADA DE ARQUIVOS
 saveFileBtn.addEventListener('click', async () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
-  showLoading('Salvando alterações no GitHub...');
+  showLoading('Enviando alterações...');
 
   try {
     const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
@@ -625,14 +635,52 @@ saveFileBtn.addEventListener('click', async () => {
       currentFile.sha
     );
 
-    currentFile.sha = result.content.sha;
+    const newSha = result.content.sha;
+    currentFile.sha = newSha;
     originalFileContent = newContent;
     updateSaveButtonState(false);
-    showToast('Alterações salvas com sucesso!');
-  } catch (error) {
-    showToast('Erro ao salvar: ' + error.message, 'error');
-  } finally {
+    
     hideLoading();
+
+    // EXIBE O AVISO NO CANTO INFERIOR DIREITO INICIANDO A VALIDAÇÃO
+    const syncToast = showToast('🔄 Sincronizando com o GitHub...', 'success', null, 0);
+
+    // PROCESSAMENTO EM SEGUNDO PLANO PARA VALIDAR A PROPAGAÇÃO NO GITHUB
+    (async () => {
+      let synchronized = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (attempts < maxAttempts && !synchronized) {
+        await delay(1200);
+        attempts++;
+
+        try {
+          // Burlar cache anexando timestamp
+          const cachePath = `${currentFile.path}?t=${Date.now()}`;
+          const updatedFile = await github.getFile(currentUser.login, currentRepo, cachePath);
+          
+          if (updatedFile.sha === newSha) {
+            synchronized = true;
+          }
+        } catch (e) {
+          // Ignora falhas temporárias de rede durante a propagação
+        }
+      }
+
+      // ATUALIZA O TOAST PARA AVISO CLICÁVEL DE RECARREGAR PÁGINA
+      syncToast.remove();
+      showToast(
+        '✅ Sincronizado! <u>Clique aqui para recarregar a página</u>',
+        'success',
+        () => location.reload(),
+        8000
+      );
+    })();
+
+  } catch (error) {
+    hideLoading();
+    showToast('Erro ao salvar: ' + error.message, 'error');
   }
 });
 
