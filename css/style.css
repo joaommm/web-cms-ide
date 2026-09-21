@@ -5,19 +5,50 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
+/* VARIÁVEIS DE COR PARA TEMAS */
+:root {
+  --bg-body: #f4f6f8;
+  --bg-app: #ffffff;
+  --text-main: #333333;
+  --text-heading: #24292e;
+  --border-color: #eaeef2;
+  --list-border: #eee;
+  --hover-bg: #f0f3f6;
+  --input-bg: #ffffff;
+  --input-border: #ccc;
+  --popover-bg: #ffffff;
+  --popover-border: #e1e4e8;
+}
+
+body.dark-mode {
+  --bg-body: #0d1117;
+  --bg-app: #161b22;
+  --text-main: #c9d1d9;
+  --text-heading: #f0f6fc;
+  --border-color: #30363d;
+  --list-border: #21262d;
+  --hover-bg: #21262d;
+  --input-bg: #0d1117;
+  --input-border: #30363d;
+  --popover-bg: #161b22;
+  --popover-border: #30363d;
+}
+
 body {
-  background-color: #f4f6f8;
-  color: #333;
+  background-color: var(--bg-body);
+  color: var(--text-main);
   padding: 15px;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 #app {
   max-width: 1200px;
   margin: 0 auto;
-  background: #fff;
+  background: var(--bg-app);
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: background-color 0.2s;
 }
 
 /* Header Principal */
@@ -26,23 +57,58 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  border-bottom: 2px solid #eaeef2;
+  border-bottom: 2px solid var(--border-color);
   padding-bottom: 12px;
   flex-wrap: wrap;
   gap: 10px;
   position: relative;
 }
 
-h1, h2, h3 { color: #24292e; }
+h1, h2, h3 { color: var(--text-heading); }
 
 section { margin-top: 15px; }
 
-input[type="password"], input[type="text"] {
+input[type="password"], input[type="text"], select.menu-select {
   width: 100%;
   padding: 10px;
   margin: 10px 0;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--text-main);
+}
+
+/* TELA DE LOGIN FERRAMENTAS (AJUDA E TEMA) */
+.login-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.login-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.icon-btn {
+  background-color: var(--hover-bg);
+  color: var(--text-heading);
+  border: 1px solid var(--popover-border);
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.icon-btn:hover {
+  background-color: var(--border-color);
 }
 
 /* DESTAQUE DO NOME DO REPOSITÓRIO */
@@ -54,12 +120,12 @@ input[type="password"], input[type="text"] {
 /* ESTILO NORMAL PARA O NOME DO ARQUIVO SELECIONADO */
 .file-title-label {
   font-weight: 700;
-  color: #24292e;
+  color: var(--text-heading);
 }
 
 .file-title-normal {
   font-weight: 400 !important;
-  color: #333;
+  color: var(--text-main);
 }
 
 /* PADRONIZAÇÃO DE BOTÕES */
@@ -97,7 +163,7 @@ button:hover { background-color: #2c974b; }
   justify-content: center !important;
 }
 
-/* COR VERMELHA PADRÃO DOS BOTÕES DE EXCLUSÃO (SEM ESCURECER NO MODO SELECIONADO) */
+/* COR VERMELHA PADRÃO DOS BOTÕES DE EXCLUSÃO */
 button.danger-btn, .power-btn {
   background-color: #cf222e !important;
   color: #fff !important;
@@ -110,15 +176,21 @@ button.danger-btn:hover, .power-btn:hover {
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
-/* INDICATIVO VISUAL DE BORDA NO MODO DE EXCLUSÃO (SEM ESCURECER O VERMELHO) */
+/* INDICATIVO VISUAL DE BORDA NO MODO DE EXCLUSÃO */
 button.delete-mode-active {
   background-color: #cf222e !important;
   border-color: #f1e05a !important;
   box-shadow: 0 0 0 2px rgba(241, 224, 90, 0.8) !important;
 }
 
-/* POPOVER FLUTUANTE DO BOTÃO DESLIGAR */
-#logout-wrapper {
+/* POPOVERS FLUTUANTES (CONFIGURAÇÕES E DESLIGAR) */
+#header-actions-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#settings-wrapper, #logout-wrapper {
   position: relative;
   display: flex;
   align-items: center;
@@ -132,33 +204,75 @@ button.delete-mode-active {
   box-shadow: 0 2px 5px rgba(207, 34, 46, 0.3);
 }
 
-#logout-popover {
-  position: absolute;
-  top: 50%;
-  right: 100%;
-  transform: translateY(-50%) translateX(-8px);
-  background: #fff;
-  padding: 6px 8px;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-  border: 1px solid #e1e4e8;
-  z-index: 1000;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
-}
-
-.logout-popover-hidden {
+.popover-hidden {
   opacity: 0;
   transform: translateY(-50%) translateX(-16px);
   visibility: hidden;
   pointer-events: none;
 }
 
-.logout-popover-visible {
+.popover-visible {
   opacity: 1;
   transform: translateY(-50%) translateX(-8px);
   visibility: visible;
   pointer-events: auto;
+}
+
+#settings-popover, #logout-popover {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%) translateX(-8px);
+  background: var(--popover-bg);
+  padding: 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  border: 1px solid var(--popover-border);
+  z-index: 1000;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.popover-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.popover-menu-item .menu-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.menu-select {
+  padding: 4px 8px;
+  margin: 0;
+  font-size: 12px;
+  width: auto;
+}
+
+.help-link-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 6px 10px;
+  background-color: var(--hover-bg);
+  color: var(--text-main);
+  border: 1px solid var(--popover-border);
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.help-link-btn:hover {
+  background-color: var(--border-color);
 }
 
 #logout-btn {
@@ -231,7 +345,7 @@ button.preview-active {
 
 #repo-list li {
   padding: 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--list-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -254,12 +368,12 @@ button.preview-active {
   color: #218bff;
 }
 
-/* ÁRVORE DE ARQUIVOS - FORMATAÇÃO SEM REFLOW / SEM EXPANSÃO VERTICAL */
+/* ÁRVORE DE ARQUIVOS */
 #file-tree li {
   padding: 8px 12px;
   min-height: 44px;
   margin-bottom: 4px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--list-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -269,7 +383,7 @@ button.preview-active {
   transition: background-color 0.15s ease;
 }
 
-#file-tree li:hover { background-color: #f0f3f6; }
+#file-tree li:hover { background-color: var(--hover-bg); }
 
 .tree-item-title {
   display: flex;
@@ -280,15 +394,15 @@ button.preview-active {
 
 .is-folder {
   font-weight: 700;
-  color: #24292e;
+  color: var(--text-heading);
 }
 
 .is-file {
   font-weight: 400;
-  color: #333;
+  color: var(--text-main);
 }
 
-/* RECEPTÁCULO DE AÇÕES DO ITEM DA LISTA (RESERVA ESPAÇO SEM ALTERAR ALTURA) */
+/* RECEPTÁCULO DE AÇÕES DO ITEM DA LISTA */
 .tree-item-actions {
   display: flex;
   align-items: center;
@@ -321,7 +435,7 @@ button.preview-active {
 
 .file-explorer {
   width: 30%;
-  border-right: 1px solid #eee;
+  border-right: 1px solid var(--border-color);
   padding-right: 15px;
 }
 
@@ -339,7 +453,7 @@ button.preview-active {
 
 .path-display {
   font-size: 13px;
-  color: #666;
+  color: #888;
   margin-top: 6px;
   word-break: break-all;
 }
@@ -363,7 +477,7 @@ button.preview-active {
 
 #current-file-title {
   font-size: 18px;
-  color: #24292e;
+  color: var(--text-heading);
   word-break: break-all;
 }
 
@@ -387,7 +501,7 @@ button.preview-active {
   width: 100%;
   height: 520px;
   min-height: 520px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
 }
 
@@ -400,13 +514,15 @@ button.preview-active {
   font-family: monospace;
   font-size: 15px;
   padding: 10px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-main);
   border-radius: 4px;
   resize: vertical;
   margin-top: 4px;
 }
 
-/* MODO FULLSCREEN (EXPANDIDO) - FIXAÇÃO PERFEITA NO TOPO NO MOBILE E DESKTOP */
+/* MODO FULLSCREEN (EXPANDIDO) */
 .fullscreen-editor {
   position: fixed !important;
   top: 0 !important;
@@ -416,7 +532,7 @@ button.preview-active {
   width: 100vw !important;
   height: 100vh !important;
   z-index: 99999 !important;
-  background-color: #ffffff !important;
+  background-color: var(--bg-app) !important;
   padding: 10px !important;
   margin: 0 !important;
   display: flex !important;
@@ -436,7 +552,7 @@ button.preview-active {
   justify-content: space-between !important;
   align-items: center !important;
   gap: 8px !important;
-  background: #fff !important;
+  background: var(--bg-app) !important;
 }
 
 /* DESKTOP */
@@ -463,7 +579,7 @@ button.preview-active {
 
   .code-editor-area {
     margin-top: 15px;
-    border-top: 1px dashed #e1e4e8;
+    border-top: 1px dashed var(--border-color);
     padding-top: 15px;
     width: 100%;
   }
@@ -481,7 +597,6 @@ button.preview-active {
     align-items: center;
   }
 
-  /* REEXIBE O SÍMBOLO DE VOLTAR NO MOBILE */
   #back-to-repos-btn .btn-icon-back {
     display: inline-block;
   }
@@ -506,7 +621,6 @@ button.preview-active {
     gap: 4px;
   }
 
-  /* OCULTA TEXTO DOS BOTÕES DO EDITOR NO MOBILE */
   .editor-actions .btn-label {
     display: none;
   }
@@ -525,16 +639,16 @@ button.preview-active {
     margin: 0 !important;
   }
   
-  #logout-popover {
+  #settings-popover, #logout-popover {
     top: 48px;
     right: 0;
     left: auto;
     transform: none;
   }
-  .logout-popover-hidden {
+  .popover-hidden {
     transform: translateY(-8px);
   }
-  .logout-popover-visible {
+  .popover-visible {
     transform: translateY(0);
   }
 
@@ -576,6 +690,7 @@ button.preview-active {
 .preview-header h3 {
   font-size: 16px;
   font-weight: 600;
+  color: #fff;
 }
 
 #preview-frame {
@@ -592,7 +707,7 @@ button.preview-active {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   justify-content: center;
