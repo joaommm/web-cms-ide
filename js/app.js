@@ -168,7 +168,7 @@ function getLanguageFromFilename(filename) {
   }
 }
 
-// INICIALIZAÇÃO DO EDITOR MONACO FIXADO SEMPRE NO TEMA ESCURO (VS-DARK)
+// INICIALIZAÇÃO DO EDITOR MONACO (TEMA FIXO VS-DARK)
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
@@ -250,7 +250,7 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-// POPOVERS
+// POPOVERS DE CONFIGURAÇÃO E DESCONEXÃO
 settingsToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   logoutPopover.classList.remove('popover-visible');
@@ -619,11 +619,11 @@ async function openFile(filePath) {
   }
 }
 
-// OTIMIZAÇÃO: SALVAMENTO E SINCRONIZAÇÃO FORÇADA DE ARQUIVOS
+// SALVAMENTO E SINCRONIZAÇÃO DE ARQUIVO
 saveFileBtn.addEventListener('click', async () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
-  showLoading('Enviando alterações...');
+  showLoading('Enviando alterações para o GitHub...');
 
   try {
     const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
@@ -642,41 +642,38 @@ saveFileBtn.addEventListener('click', async () => {
     
     hideLoading();
 
-    // EXIBE O AVISO NO CANTO INFERIOR DIREITO INICIANDO A VALIDAÇÃO
-    const syncToast = showToast('🔄 Sincronizando com o GitHub...', 'success', null, 0);
+    const syncToast = showToast('🔄 Sincronizando e atualizando cache...', 'success', null, 0);
 
-    // PROCESSAMENTO EM SEGUNDO PLANO PARA VALIDAR A PROPAGAÇÃO NO GITHUB
-    (async () => {
-      let synchronized = false;
-      let attempts = 0;
-      const maxAttempts = 10;
+    // Validação ativa no GitHub em segundo plano
+    let synchronized = false;
+    let attempts = 0;
+    const maxAttempts = 8;
 
-      while (attempts < maxAttempts && !synchronized) {
-        await delay(1200);
-        attempts++;
+    while (attempts < maxAttempts && !synchronized) {
+      await delay(1000);
+      attempts++;
 
-        try {
-          // Burlar cache anexando timestamp
-          const cachePath = `${currentFile.path}?t=${Date.now()}`;
-          const updatedFile = await github.getFile(currentUser.login, currentRepo, cachePath);
-          
-          if (updatedFile.sha === newSha) {
-            synchronized = true;
-          }
-        } catch (e) {
-          // Ignora falhas temporárias de rede durante a propagação
+      try {
+        const updatedFile = await github.getFile(currentUser.login, currentRepo, currentFile.path);
+        if (updatedFile.sha === newSha) {
+          synchronized = true;
         }
+      } catch (e) {
+        // Ignora oscilações temporárias durante a propagação
       }
+    }
 
-      // ATUALIZA O TOAST PARA AVISO CLICÁVEL DE RECARREGAR PÁGINA
-      syncToast.remove();
-      showToast(
-        '✅ Sincronizado! <u>Clique aqui para recarregar a página</u>',
-        'success',
-        () => location.reload(),
-        8000
-      );
-    })();
+    syncToast.remove();
+
+    // Notifica e força o recarrega da página limpando o cache
+    showToast(
+      '✅ Alterações confirmadas! Clique para RECARREGAR A PÁGINA',
+      'success',
+      () => {
+        window.location.reload(true);
+      },
+      10000
+    );
 
   } catch (error) {
     hideLoading();
