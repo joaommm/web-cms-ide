@@ -11,6 +11,10 @@ let isDeleteMode = false;
 let isDarkMode = false;
 const isMobile = window.innerWidth <= 768;
 
+// FILA ASSÍNCRONA DE REQUISIÇÕES (QUEUE)
+const saveQueue = [];
+let isProcessingQueue = false;
+
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
 
@@ -620,48 +624,81 @@ async function openFile(filePath) {
   }
 }
 
-// SALVAMENTO DE ARQUIVO COM VERIFICAÇÃO DE DADOS E MONITORAMENTO DE BUILD
-saveFileBtn.addEventListener('click', async () => {
-  if (!currentFile || !hasUnsavedChanges) return;
+// SISTEMA DE FILA ASSÍNCRONA PARA EMPILHAMENTO DE REQUISIÇÕES DE SALVAMENTO
+function queueSaveRequest(fileObj, content) {
+  saveQueue.push({ file: fileObj, content: content });
+  
+  if (saveQueue.length > 1) {
+    showToast(`⏳ Salvamento de <b>${fileObj.name}</b> adicionado à fila (${saveQueue.length} na fila)`, 'info', 2500);
+  }
+  
+  processSaveQueue();
+}
 
-  showLoading('Salvando e confirmando com o GitHub...');
+async function processSaveQueue() {
+  if (isProcessingQueue || saveQueue.length === 0) return;
+
+  isProcessingQueue = true;
+  const currentItem = saveQueue[0];
+  const { file, content } = currentItem;
+  
+  const totalPending = saveQueue.length;
+  const queueStatusToast = showToast(`⚙️ Enviando <b>${file.name}</b> (${totalPending} pendente${totalPending > 1 ? 's' : ''})...`, 'info', 0);
 
   try {
-    const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
+    // Busca o SHA mais recente do arquivo antes de atualizar para evitar erro 409 de conflito no GitHub
+    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
+    
     const result = await github.updateFile(
       currentUser.login,
       currentRepo,
-      currentFile.path,
-      newContent,
-      currentFile.sha
+      file.path,
+      content,
+      latestFileData.sha
     );
 
-    const newSha = result.content.sha;
-    
-    // Polling rápido para confirmar a atualização do SHA do arquivo na API
-    let attempts = 0;
-    while (attempts < 10) {
-      await new Promise(r => setTimeout(r, 800));
-      try {
-        const check = await github.getFile(currentUser.login, currentRepo, currentFile.path);
-        if (check.sha === newSha) break;
-      } catch (e) {}
-      attempts++;
+    // Se o arquivo salvo for o que está aberto atualmente na tela, atualiza seu SHA e reseta o botão
+    if (currentFile && currentFile.path === file.path) {
+      currentFile.sha = result.content.sha;
+      originalFileContent = content;
+      updateSaveButtonState(false);
     }
 
-    currentFile.sha = newSha;
-    originalFileContent = newContent;
-    updateSaveButtonState(false);
-
-    showToast('Arquivo salvo no repositório com sucesso!');
-    await loadFiles(currentFolderPath);
-    monitorPageDeployment();
-
+    queueStatusToast.remove();
+    showToast(`✅ Arquivo <b>${file.name}</b> salvo no repositório com sucesso!`, 'success', 3500);
+    
   } catch (error) {
-    showToast('Erro ao salvar: ' + error.message, 'error');
+    queueStatusToast.remove();
+    showToast(`❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`, 'error', 5000);
   } finally {
-    hideLoading();
+    saveQueue.shift(); // Remove o item processado da fila
+    isProcessingQueue = false;
+
+    if (saveQueue.length > 0) {
+      processSaveQueue(); // Processa o próximo item
+    } else {
+      // Quando toda a fila for finalizada
+      await loadFiles(currentFolderPath);
+      monitorPageDeployment();
+    }
   }
+}
+
+// EVENTO DE SALVAR COM SUPORTE À FILA E MOBILE
+saveFileBtn.addEventListener('click', () => {
+  if (!currentFile || !hasUnsavedChanges) return;
+
+  // No mobile garante que pegamos o texto atualizado diretamente do textarea
+  const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  
+  // Clona o estado atual do arquivo para enviar para a fila
+  const fileToSave = { ...currentFile };
+  
+  // Atualiza o estado visual do botão imediatamente
+  updateSaveButtonState(false);
+
+  // Adiciona a requisição à fila
+  queueSaveRequest(fileToSave, newContent);
 });
 
 expandBtn.addEventListener('click', () => {
@@ -794,4 +831,4 @@ backToReposBtn.addEventListener('click', async () => {
   setActionButtonVisibility(previewBtn, false);
   currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
   await loadRepositories();
-}); 
+});
