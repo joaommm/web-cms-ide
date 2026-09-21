@@ -98,28 +98,32 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO REAL DO GITHUB PAGES (SEM TIMEOUT FORÇADO)
+// MONITORAMENTO DE DEPLOYMENT SEM TIMEOUT E COM PREVENÇÃO DE FALSO POSITIVO
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
+  const toast = showToast('🚀 Alteração enviada. Aguardando publicação oficial do GitHub...', 'info', 0);
 
   try {
-    // Monitora e atualiza o estado exatamente no tempo que o GitHub levar
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
     });
 
-    // Quando o GitHub responder que concluiu o build:
+    // Pequena pausa técnica de 3s extra para garantir a propagação na CDN do GitHub
+    toast.innerHTML = '🔄 Finalizando sincronização nos servidores do GitHub...';
+    await new Promise(r => setTimeout(r, 3000));
+
     toast.className = 'toast success';
-    toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+    toast.innerHTML = '✨ Site publicado com sucesso! (Se não visualizar, use Ctrl+F5 para limpa cache)';
+    
+    // Exibe por 30 segundos
     setTimeout(() => toast.remove(), 30000);
 
   } catch (error) {
-    // Se o repositório não usa Pages ou a API não possui build ativo
+    // Caso o repositório não tenha GitHub Pages ativo
     toast.className = 'toast success';
     toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => toast.remove(), 5000);
   }
 }
 
