@@ -11,7 +11,6 @@ class GitHubAPI {
     };
   }
 
-  // Anexa o parâmetro para evitar que a API retorne a versão do cache
   buildUrl(endpoint) {
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${this.baseUrl}${endpoint}${separator}_t=${Date.now()}`;
@@ -132,5 +131,49 @@ class GitHubAPI {
         }
       }
     }
+  }
+
+  // --- MÉTODOS DE DUPLA VERIFICAÇÃO (POLLING) ---
+
+  // Aguarda até que o arquivo/pasta exista no GitHub
+  async waitForPathExist(owner, repo, path, retries = 10, delay = 800) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.getContents(owner, repo, path);
+        return true; // Encontrou no GitHub
+      } catch (e) {
+        // Ainda não propagou, aguarda e tenta novamente
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
+    return false;
+  }
+
+  // Aguarda até que o arquivo/pasta seja removido do GitHub
+  async waitForPathNotExist(owner, repo, path, retries = 10, delay = 800) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.getContents(owner, repo, path);
+        // Se ainda respondeu com sucesso, aguarda sumir
+        await new Promise(res => setTimeout(res, delay));
+      } catch (e) {
+        return true; // Sumiu do GitHub
+      }
+    }
+    return false;
+  }
+
+  // Aguarda um novo repositório aparecer na lista do usuário
+  async waitForRepoExist(repoName, retries = 10, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const repos = await this.getRepositories();
+        if (repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
+          return true;
+        }
+      } catch (e) {}
+      await new Promise(res => setTimeout(res, delay));
+    }
+    return false;
   }
 }
