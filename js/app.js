@@ -98,25 +98,42 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOYMENT DO GITHUB PAGES COM TRATAMENTO PARA REPOSITÓRIOS COMUM
+// MONITORAMENTO DE DEPLOYMENT COM TIMEOUT DE 15s E EXIBIÇÃO FINAL DE 30s
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  const toast = showToast('🚀 Alteração enviada. Verificando publicação...', 'info', 0);
+  const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
+
+  // Timeout de segurança: 15 segundos para parar a verificação se o GitHub demorar muito
+  let isTimedOut = false;
+  const timeoutId = setTimeout(() => {
+    isTimedOut = true;
+    toast.className = 'toast success';
+    toast.innerHTML = '💾 Alteração enviada com sucesso! O GitHub está processando em segundo plano.';
+    setTimeout(() => toast.remove(), 5000);
+  }, 15000);
 
   try {
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      toast.innerHTML = statusMsg;
+      if (!isTimedOut) {
+        toast.innerHTML = statusMsg;
+      }
     });
 
-    toast.className = 'toast success';
-    toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
-    setTimeout(() => toast.remove(), 5000);
+    if (!isTimedOut) {
+      clearTimeout(timeoutId);
+      toast.className = 'toast success';
+      toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+      // Exibe a mensagem de sucesso por até 30 segundos
+      setTimeout(() => toast.remove(), 30000);
+    }
   } catch (error) {
-    // Se o repositório NÃO tiver GitHub Pages ativado, encerra o toast com sucesso
-    toast.className = 'toast success';
-    toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
-    setTimeout(() => toast.remove(), 4000);
+    if (!isTimedOut) {
+      clearTimeout(timeoutId);
+      toast.className = 'toast success';
+      toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
+      setTimeout(() => toast.remove(), 5000);
+    }
   }
 }
 
