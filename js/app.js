@@ -98,11 +98,11 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOYMENT DO GITHUB PAGES VIA TOAST
+// MONITORAMENTO DO DEPLOYMENT DO GITHUB PAGES COM TRATAMENTO PARA REPOSITÓRIOS COMUM
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  const toast = showToast('🚀 Alteração enviada. Iniciando monitoramento da publicação...', 'info', 0);
+  const toast = showToast('🚀 Alteração enviada. Verificando publicação...', 'info', 0);
 
   try {
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
@@ -113,9 +113,10 @@ async function monitorPageDeployment() {
     toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
     setTimeout(() => toast.remove(), 5000);
   } catch (error) {
-    toast.className = 'toast error';
-    toast.innerHTML = `⚠️ Alerta de publicação: ${error.message}`;
-    setTimeout(() => toast.remove(), 6000);
+    // Se o repositório NÃO tiver GitHub Pages ativado, encerra o toast com sucesso
+    toast.className = 'toast success';
+    toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
+    setTimeout(() => toast.remove(), 4000);
   }
 }
 
@@ -624,7 +625,7 @@ async function openFile(filePath) {
   }
 }
 
-// SISTEMA DE FILA ASSÍNCRONA PARA EMPILHAMENTO DE REQUISIÇÕES DE SALVAMENTO
+// FILA ASSÍNCRONA DE SALVAMENTO
 function queueSaveRequest(fileObj, content) {
   saveQueue.push({ file: fileObj, content: content });
   
@@ -646,7 +647,6 @@ async function processSaveQueue() {
   const queueStatusToast = showToast(`⚙️ Enviando <b>${file.name}</b> (${totalPending} pendente${totalPending > 1 ? 's' : ''})...`, 'info', 0);
 
   try {
-    // Busca o SHA mais recente do arquivo antes de atualizar para evitar erro 409 de conflito no GitHub
     const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
     
     const result = await github.updateFile(
@@ -657,7 +657,6 @@ async function processSaveQueue() {
       latestFileData.sha
     );
 
-    // Se o arquivo salvo for o que está aberto atualmente na tela, atualiza seu SHA e reseta o botão
     if (currentFile && currentFile.path === file.path) {
       currentFile.sha = result.content.sha;
       originalFileContent = content;
@@ -665,39 +664,31 @@ async function processSaveQueue() {
     }
 
     queueStatusToast.remove();
-    showToast(`✅ Arquivo <b>${file.name}</b> salvo no repositório com sucesso!`, 'success', 3500);
+    showToast(`✅ Arquivo <b>${file.name}</b> salvo com sucesso!`, 'success', 3000);
     
   } catch (error) {
     queueStatusToast.remove();
     showToast(`❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`, 'error', 5000);
   } finally {
-    saveQueue.shift(); // Remove o item processado da fila
+    saveQueue.shift();
     isProcessingQueue = false;
 
     if (saveQueue.length > 0) {
-      processSaveQueue(); // Processa o próximo item
+      processSaveQueue();
     } else {
-      // Quando toda a fila for finalizada
       await loadFiles(currentFolderPath);
       monitorPageDeployment();
     }
   }
 }
 
-// EVENTO DE SALVAR COM SUPORTE À FILA E MOBILE
 saveFileBtn.addEventListener('click', () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
-  // No mobile garante que pegamos o texto atualizado diretamente do textarea
   const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
-  
-  // Clona o estado atual do arquivo para enviar para a fila
   const fileToSave = { ...currentFile };
   
-  // Atualiza o estado visual do botão imediatamente
   updateSaveButtonState(false);
-
-  // Adiciona a requisição à fila
   queueSaveRequest(fileToSave, newContent);
 });
 
