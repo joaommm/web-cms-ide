@@ -4,10 +4,10 @@ on:
   push:
     branches: ["main"]
 
-# Cancela imediatamente o deploy anterior se houver um novo commit
+# Configura a fila de execução para processar um commit por vez
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false  # Empilha as execuções em vez de cancelar
 
 jobs:
   deploy:
@@ -23,7 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Baixa apenas o último commit (muito mais rápido que baixar o histórico todo)
           fetch-depth: 1
 
       - name: Setup Pages
