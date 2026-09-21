@@ -334,7 +334,11 @@ toggleDeleteModeBtn.addEventListener('click', () => {
   
   const actionContainers = document.querySelectorAll('.tree-item-actions');
   actionContainers.forEach(container => {
-    container.style.display = isDeleteMode ? 'flex' : 'none';
+    if (isDeleteMode) {
+      container.classList.add('visible-action');
+    } else {
+      container.classList.remove('visible-action');
+    }
   });
 });
 
@@ -380,8 +384,8 @@ async function loadFiles(path = '') {
 
       li.innerHTML = `
         <span class="tree-item-title ${textClass}"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
-        <div class="tree-item-actions" style="display: ${isDeleteMode ? 'flex' : 'none'};">
-          <button class="danger-btn" style="padding: 2px 6px; font-size: 11px;" title="Excluir">✖</button>
+        <div class="tree-item-actions ${isDeleteMode ? 'visible-action' : ''}">
+          <button class="danger-btn" title="Excluir">✖</button>
         </div>
       `;
 
@@ -507,7 +511,6 @@ async function openFile(filePath) {
     };
 
     originalFileContent = decodedContent;
-    // Título ajustado para manter "Arquivo:" em negrito e o nome em fonte normal
     currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
 
     if (isMobile) {
