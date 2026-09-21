@@ -13,7 +13,6 @@ const isMobile = window.innerWidth <= 768;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
-const authStatus = document.getElementById('auth-status');
 
 const mainHeader = document.getElementById('main-header');
 const loginSection = document.getElementById('login-section');
@@ -35,7 +34,7 @@ const newRepoBtn = document.getElementById('new-repo-btn');
 const loginHeaderTools = document.getElementById('login-header-tools');
 const headerActionsWrapper = document.getElementById('header-actions-wrapper');
 
-// ELEMENTOS DE CONFIGURAÇÃO E LOGOUT
+// CONFIGURAÇÃO E LOGOUT
 const settingsWrapper = document.getElementById('settings-wrapper');
 const settingsToggleBtn = document.getElementById('settings-toggle-btn');
 const settingsPopover = document.getElementById('settings-popover');
@@ -71,8 +70,6 @@ const toastContainer = document.getElementById('toast-container');
 const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
 const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
   loadingOverlay.style.display = 'flex';
@@ -82,16 +79,10 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
-function showToast(message, type = 'success', onClickCallback = null, duration = 3500) {
+function showToast(message, type = 'success', duration = 3500) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerHTML = message;
-  
-  if (onClickCallback) {
-    toast.style.cursor = 'pointer';
-    toast.addEventListener('click', onClickCallback);
-  }
-
   toastContainer.appendChild(toast);
 
   if (duration > 0) {
@@ -103,7 +94,7 @@ function showToast(message, type = 'success', onClickCallback = null, duration =
   return toast;
 }
 
-// GERENCIAMENTO DE TEMA DA PÁGINA
+// TEMA DA PÁGINA
 function toggleTheme() {
   isDarkMode = !isDarkMode;
   if (isDarkMode) {
@@ -168,7 +159,7 @@ function getLanguageFromFilename(filename) {
   }
 }
 
-// INICIALIZAÇÃO DO EDITOR MONACO (TEMA FIXO VS-DARK)
+// INICIALIZAÇÃO DO EDITOR MONACO
 if (!isMobile) {
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
   require(['vs/editor/editor.main'], function () {
@@ -250,7 +241,7 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-// POPOVERS DE CONFIGURAÇÃO E DESCONEXÃO
+// POPOVERS
 settingsToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   logoutPopover.classList.remove('popover-visible');
@@ -330,25 +321,17 @@ newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
 
-  showLoading('Criando e atualizando lista...');
+  showLoading('Criando e aguardando confirmação do GitHub...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const repos = await github.getRepositories();
-      if (repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
+    
+    // Aguarda até que o GitHub confirme a criação
+    await github.waitForRepoExist(repoName);
 
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
   } catch (error) {
     showToast('Erro ao criar repositório: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 });
@@ -360,17 +343,16 @@ async function confirmDeleteRepo(repoName) {
     return;
   }
 
-  showLoading('Excluindo e atualizando...');
+  showLoading('Excluindo e sincronizando...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
+    
+    // Aguarda até o repositório sumir da lista
     let attempts = 0;
-    let removed = false;
-    while (attempts < 4 && !removed) {
-      await delay(1000);
+    while (attempts < 10) {
+      await new Promise(r => setTimeout(r, 800));
       const repos = await github.getRepositories();
-      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
-        removed = true;
-      }
+      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) break;
       attempts++;
     }
 
@@ -378,7 +360,6 @@ async function confirmDeleteRepo(repoName) {
     await loadRepositories();
   } catch (error) {
     showToast('Erro ao excluir repositório: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 }
@@ -523,11 +504,14 @@ async function deleteFolder(folderPath, folderName) {
   showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
   try {
     await github.deleteFolder(currentUser.login, currentRepo, folderPath);
+    
+    // Dupla verificação até a pasta sumir do GitHub
+    await github.waitForPathNotExist(currentUser.login, currentRepo, folderPath);
+
     showToast('Pasta excluída com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 }
@@ -536,9 +520,12 @@ async function deleteFileByPath(filePath, sha) {
   const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
   if (!confirmDelete) return;
 
-  showLoading('Excluindo arquivo...');
+  showLoading('Excluindo arquivo e sincronizando...');
   try {
     await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
+
+    // Dupla verificação até o arquivo sumir
+    await github.waitForPathNotExist(currentUser.login, currentRepo, filePath);
 
     if (currentFile && currentFile.path === filePath) {
       currentFile = null;
@@ -564,7 +551,6 @@ async function deleteFileByPath(filePath, sha) {
 
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 }
@@ -619,11 +605,11 @@ async function openFile(filePath) {
   }
 }
 
-// SALVAMENTO E SINCRONIZAÇÃO DE ARQUIVO
+// SALVAMENTO DE ARQUIVO
 saveFileBtn.addEventListener('click', async () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
-  showLoading('Enviando alterações para o GitHub...');
+  showLoading('Salvando e confirmando com o GitHub...');
 
   try {
     const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
@@ -636,48 +622,28 @@ saveFileBtn.addEventListener('click', async () => {
     );
 
     const newSha = result.content.sha;
+    
+    // Aguarda ativamente até que a busca traga exatamente a versão do novo SHA
+    let attempts = 0;
+    while (attempts < 10) {
+      await new Promise(r => setTimeout(r, 800));
+      try {
+        const check = await github.getFile(currentUser.login, currentRepo, currentFile.path);
+        if (check.sha === newSha) break;
+      } catch (e) {}
+      attempts++;
+    }
+
     currentFile.sha = newSha;
     originalFileContent = newContent;
     updateSaveButtonState(false);
     
-    hideLoading();
-
-    const syncToast = showToast('🔄 Sincronizando e atualizando cache...', 'success', null, 0);
-
-    // Validação ativa no GitHub em segundo plano
-    let synchronized = false;
-    let attempts = 0;
-    const maxAttempts = 8;
-
-    while (attempts < maxAttempts && !synchronized) {
-      await delay(1000);
-      attempts++;
-
-      try {
-        const updatedFile = await github.getFile(currentUser.login, currentRepo, currentFile.path);
-        if (updatedFile.sha === newSha) {
-          synchronized = true;
-        }
-      } catch (e) {
-        // Ignora oscilações temporárias durante a propagação
-      }
-    }
-
-    syncToast.remove();
-
-    // Notifica e força o recarrega da página limpando o cache
-    showToast(
-      '✅ Alterações confirmadas! Clique para RECARREGAR A PÁGINA',
-      'success',
-      () => {
-        window.location.reload(true);
-      },
-      10000
-    );
+    showToast('Alterações salvas e sincronizadas!');
 
   } catch (error) {
-    hideLoading();
     showToast('Erro ao salvar: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -725,7 +691,7 @@ newFileBtn.addEventListener('click', async () => {
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
 
-  showLoading('Criando arquivo e atualizando...');
+  showLoading('Criando arquivo e aguardando confirmação...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -736,22 +702,13 @@ newFileBtn.addEventListener('click', async () => {
       `Criado arquivo ${filename} via Web CMS`
     );
 
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
-      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === filename.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
+    // Dupla verificação até o arquivo existir
+    await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar arquivo: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 });
@@ -764,7 +721,7 @@ newFolderBtn.addEventListener('click', async () => {
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
 
-  showLoading('Criando pasta...');
+  showLoading('Criando pasta e aguardando confirmação...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -775,22 +732,13 @@ newFolderBtn.addEventListener('click', async () => {
       `Criada pasta ${folderName} via Web CMS`
     );
 
-    let attempts = 0;
-    let found = false;
-    while (attempts < 4 && !found) {
-      await delay(1000);
-      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
-      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === folderName.toLowerCase())) {
-        found = true;
-      }
-      attempts++;
-    }
+    // Dupla verificação até a pasta/arquivo .gitkeep existir
+    await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Pasta criada com sucesso!');
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar pasta: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 });
