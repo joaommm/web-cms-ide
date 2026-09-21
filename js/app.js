@@ -74,52 +74,6 @@ const toastContainer = document.getElementById('toast-container');
 const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
 const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
 
-// GESTÃO DE ESTADO LOCAL (Sessão Mantida ao Recarregar F5 / Mobile)
-function saveAppState() {
-  const state = {
-    repo: currentRepo,
-    folder: currentFolderPath,
-    filePath: currentFile ? currentFile.path : null
-  };
-  localStorage.setItem('gh_app_state', JSON.stringify(state));
-}
-
-function clearAppState() {
-  localStorage.removeItem('gh_app_state');
-}
-
-async function restoreAppState() {
-  const savedState = localStorage.getItem('gh_app_state');
-  if (!savedState) return false;
-
-  try {
-    const state = JSON.parse(savedState);
-    if (state.repo) {
-      currentRepo = state.repo;
-      currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${currentRepo}</span>`;
-
-      mainHeader.style.display = 'none';
-      dashboardSection.style.display = 'none';
-      editorSection.style.display = 'block';
-
-      if (monacoEditor && !isMobile) {
-        setTimeout(() => monacoEditor.layout(), 100);
-      }
-
-      currentFolderPath = state.folder || '';
-      await loadFiles(currentFolderPath);
-
-      if (state.filePath) {
-        await openFile(state.filePath);
-      }
-      return true;
-    }
-  } catch (e) {
-    clearAppState();
-  }
-  return false;
-}
-
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
   loadingOverlay.style.display = 'flex';
@@ -150,6 +104,7 @@ async function monitorPageDeployment() {
 
   const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
 
+  // Timeout de segurança: 15 segundos para parar a verificação se o GitHub demorar muito
   let isTimedOut = false;
   const timeoutId = setTimeout(() => {
     isTimedOut = true;
@@ -169,6 +124,7 @@ async function monitorPageDeployment() {
       clearTimeout(timeoutId);
       toast.className = 'toast success';
       toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+      // Exibe a mensagem de sucesso por até 30 segundos
       setTimeout(() => toast.remove(), 30000);
     }
   } catch (error) {
@@ -294,17 +250,11 @@ async function autoConnect(token) {
     currentUser = await github.getUser();
     loginHeaderTools.style.display = 'none';
     headerActionsWrapper.style.display = 'flex';
-    
-    // Tenta restaurar a última sessão (repositório/pasta/arquivo)
-    const restored = await restoreAppState();
-    if (!restored) {
-      await loadRepositories();
-    }
+    await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
     showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
-    clearAppState();
   } finally {
     hideLoading();
   }
@@ -379,7 +329,6 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
-  clearAppState();
   location.reload();
 });
 
@@ -467,7 +416,6 @@ async function selectRepo(repoName) {
   }
 
   currentFolderPath = '';
-  saveAppState();
   await loadFiles(currentFolderPath);
 }
 
@@ -490,7 +438,6 @@ async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
   fileTree.innerHTML = '';
-  saveAppState();
 
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -636,7 +583,6 @@ async function deleteFileByPath(filePath, sha) {
     }
 
     showToast('Arquivo excluído com sucesso!');
-    saveAppState();
     await loadFiles(currentFolderPath);
     monitorPageDeployment();
 
@@ -673,7 +619,6 @@ async function openFile(filePath) {
     }
 
     updateSaveButtonState(false);
-    saveAppState();
 
     setActionButtonVisibility(saveFileBtn, true);
     setActionButtonVisibility(deleteFileBtn, true);
@@ -872,7 +817,6 @@ backToReposBtn.addEventListener('click', async () => {
   originalFileContent = '';
   currentFolderPath = '';
   updateSaveButtonState(false);
-  clearAppState();
 
   if (isExpanded) {
     isExpanded = false;
