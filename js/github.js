@@ -7,22 +7,20 @@ class GitHubAPI {
   get headers() {
     return {
       'Authorization': `token ${this.token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
+      'Accept': 'application/vnd.github.v3+json'
     };
   }
 
-  // Função utilitária para garantir que o parâmetro anti-cache ?t= timestamp seja anexado corretamente
+  // Anexa o parâmetro para evitar que a API retorne a versão do cache
   buildUrl(endpoint) {
     const separator = endpoint.includes('?') ? '&' : '?';
-    return `${this.baseUrl}${endpoint}${separator}_nocache=${Date.now()}`;
+    return `${this.baseUrl}${endpoint}${separator}_t=${Date.now()}`;
   }
 
   async getUser() {
     const response = await fetch(this.buildUrl('/user'), { 
       headers: this.headers,
-      cache: 'reload'
+      cache: 'no-store'
     });
     if (!response.ok) throw new Error('Token inválido ou expirado.');
     return await response.json();
@@ -31,7 +29,7 @@ class GitHubAPI {
   async getRepositories() {
     const response = await fetch(this.buildUrl('/user/repos?sort=updated'), { 
       headers: this.headers,
-      cache: 'reload'
+      cache: 'no-store'
     });
     if (!response.ok) throw new Error('Erro ao carregar repositórios.');
     return await response.json();
@@ -69,7 +67,7 @@ class GitHubAPI {
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/contents/${cleanPath}`), { 
       headers: this.headers,
-      cache: 'reload'
+      cache: 'no-store'
     });
     if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
     return await response.json();
@@ -79,14 +77,13 @@ class GitHubAPI {
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/contents/${cleanPath}`), { 
       headers: this.headers,
-      cache: 'reload'
+      cache: 'no-store'
     });
     if (!response.ok) throw new Error('Erro ao carregar o arquivo.');
     return await response.json();
   }
 
   async updateFile(owner, repo, path, content, sha, message = 'Atualizado via Web CMS') {
-    // Tratamento robusto para codificação UTF-8 em Base64
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     const base64Content = btoa(unescape(encodeURIComponent(content)));
 
