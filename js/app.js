@@ -98,18 +98,19 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DE DEPLOYMENT COM DELAY DE PROPAGAÇÃO DE CDN + TOAST DE 30s
+// MONITORAMENTO DE DEPLOYMENT COM DELAY DE PROPAGAÇÃO E SUCESSO DE 30s
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
   const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
 
+  // Timeout de segurança para alterações isoladas/scripts: 15 segundos
   let isTimedOut = false;
   const timeoutId = setTimeout(() => {
     isTimedOut = true;
     toast.className = 'toast success';
     toast.innerHTML = '💾 Alteração enviada com sucesso! O GitHub está processando em segundo plano.';
-    setTimeout(() => toast.remove(), 5000);
+    setTimeout(() => toast.remove(), 30000); // 30s na tela
   }, 15000);
 
   try {
@@ -122,14 +123,15 @@ async function monitorPageDeployment() {
     if (!isTimedOut) {
       clearTimeout(timeoutId);
       
-      // Delay de 15 segundos para a atualização do CDN do GitHub Pages
+      // Delay de sincronização para garantir que o cache da CDN do GitHub Pages propagou
       toast.className = 'toast info';
-      toast.innerHTML = '⚡ Compilação concluída! Aguardando propagação nos servidores...';
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      toast.innerHTML = '⚡ Compilado! Sincronizando CDN do GitHub (aguarde alguns segundos)...';
+      await new Promise(r => setTimeout(r, 20000)); // Espera 20s de propagação real
 
-      // Toast Verde visível por 30 segundos
       toast.className = 'toast success';
       toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+      
+      // Exibe a mensagem final por 30 segundos
       setTimeout(() => toast.remove(), 30000);
     }
   } catch (error) {
@@ -137,7 +139,7 @@ async function monitorPageDeployment() {
       clearTimeout(timeoutId);
       toast.className = 'toast success';
       toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
-      setTimeout(() => toast.remove(), 5000);
+      setTimeout(() => toast.remove(), 30000); // 30s na tela
     }
   }
 }
