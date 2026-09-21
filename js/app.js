@@ -94,6 +94,27 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
+// MONITORAMENTO DO DEPLOYMENT DO GITHUB PAGES VIA TOAST
+async function monitorPageDeployment() {
+  if (!github || !currentUser || !currentRepo) return;
+
+  const toast = showToast('🚀 Alteração enviada. Iniciando monitoramento da publicação...', 'info', 0);
+
+  try {
+    await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
+      toast.innerHTML = statusMsg;
+    });
+
+    toast.className = 'toast success';
+    toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+    setTimeout(() => toast.remove(), 5000);
+  } catch (error) {
+    toast.className = 'toast error';
+    toast.innerHTML = `⚠️ Alerta de publicação: ${error.message}`;
+    setTimeout(() => toast.remove(), 6000);
+  }
+}
+
 // TEMA DA PÁGINA
 function toggleTheme() {
   isDarkMode = !isDarkMode;
@@ -504,6 +525,7 @@ async function deleteFolder(folderPath, folderName) {
 
     showToast('Pasta excluída com sucesso!');
     await loadFiles(currentFolderPath);
+    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
     hideLoading();
@@ -540,6 +562,7 @@ async function deleteFileByPath(filePath, sha) {
 
     showToast('Arquivo excluído com sucesso!');
     await loadFiles(currentFolderPath);
+    monitorPageDeployment();
 
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
@@ -632,6 +655,7 @@ saveFileBtn.addEventListener('click', async () => {
 
     showToast('Arquivo salvo no repositório com sucesso!');
     await loadFiles(currentFolderPath);
+    monitorPageDeployment();
 
   } catch (error) {
     showToast('Erro ao salvar: ' + error.message, 'error');
@@ -699,6 +723,7 @@ newFileBtn.addEventListener('click', async () => {
 
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
+    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao criar arquivo: ' + error.message, 'error');
     hideLoading();
@@ -728,6 +753,7 @@ newFolderBtn.addEventListener('click', async () => {
 
     showToast('Pasta criada com sucesso!');
     await loadFiles(currentFolderPath);
+    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao criar pasta: ' + error.message, 'error');
     hideLoading();
