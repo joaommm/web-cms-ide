@@ -33,13 +33,19 @@
     <header class="app-header" id="main-header">
       <h1>Web CMS / IDE</h1>
 
-      <!-- Ações do Cabeçalho Superior (Configurações e Logout) -->
-      <div id="header-actions-wrapper" style="display: none;">
+      <!-- Ações da Tela Inicial (Apenas Ajuda e Tema no canto superior direito) -->
+      <div id="login-header-tools" class="header-tools-group">
+        <button id="login-theme-btn" class="icon-btn" title="Alternar Tema Claro/Escuro">🌙</button>
+        <a href="help.html" target="_blank" id="login-help-btn" class="icon-btn help-btn-link" title="Como configurar o Token e VS Code">❓</a>
+      </div>
+
+      <!-- Ações do Cabeçalho Superior (Configurações e Logout - Pós Login) -->
+      <div id="header-actions-wrapper" style="display: none;" class="header-tools-group">
         <!-- Botão de Configurações + Menu Flutuante -->
         <div id="settings-wrapper">
           <button id="settings-toggle-btn" class="icon-btn" title="Configurações">⚙️</button>
 
-          <!-- Popover Flutuante de Configurações -->
+          <!-- Popover Flutuante de Configurações (Abre sempre para baixo) -->
           <div id="settings-popover" class="popover-hidden">
             <div class="popover-menu-item" id="popover-theme-item">
               <span class="menu-label">Tema:</span>
@@ -67,7 +73,7 @@
             </svg>
           </button>
 
-          <!-- Popover Flutuante de Confirmação -->
+          <!-- Popover Flutuante de Confirmação (Abre para esquerda no Desktop) -->
           <div id="logout-popover" class="popover-hidden">
             <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
           </div>
@@ -77,16 +83,8 @@
 
     <!-- Tela de Autenticação -->
     <section id="login-section">
-      <div class="login-header-row">
-        <h2>Autenticação</h2>
-        <!-- Botões de Ajuda e Tema na Tela de Login -->
-        <div class="login-tools">
-          <button id="login-theme-btn" class="icon-btn" title="Alternar Tema Claro/Escuro">🌙</button>
-          <a href="help.html" target="_blank" id="login-help-btn" class="icon-btn help-btn-link" title="Como configurar o Token e VS Code">❓</a>
-        </div>
-      </div>
-
-      <p>Insira seu Personal Access Token do GitHub para conectar:</p>
+      <h2>Autenticação</h2>
+      <p style="margin-top: 10px;">Insira seu Personal Access Token do GitHub para conectar:</p>
       <input type="password" id="token-input" placeholder="ghp_..." />
       <button id="connect-btn">Conectar</button>
       <p id="auth-status"></p>
