@@ -794,4 +794,4 @@ backToReposBtn.addEventListener('click', async () => {
   setActionButtonVisibility(previewBtn, false);
   currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
   await loadRepositories();
-});
+}); 
