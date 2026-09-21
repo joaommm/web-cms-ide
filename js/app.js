@@ -98,49 +98,28 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DE DEPLOYMENT COM DELAY DE PROPAGAÇÃO E SUCESSO DE 30s
+// MONITORAMENTO REAL DO GITHUB PAGES (SEM TIMEOUT FORÇADO)
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
   const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
 
-  // Timeout de segurança para alterações isoladas/scripts: 15 segundos
-  let isTimedOut = false;
-  const timeoutId = setTimeout(() => {
-    isTimedOut = true;
-    toast.className = 'toast success';
-    toast.innerHTML = '💾 Alteração enviada com sucesso! O GitHub está processando em segundo plano.';
-    setTimeout(() => toast.remove(), 30000); // 30s na tela
-  }, 15000);
-
   try {
+    // Monitora e atualiza o estado exatamente no tempo que o GitHub levar
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      if (!isTimedOut) {
-        toast.innerHTML = statusMsg;
-      }
+      toast.innerHTML = statusMsg;
     });
 
-    if (!isTimedOut) {
-      clearTimeout(timeoutId);
-      
-      // Delay de sincronização para garantir que o cache da CDN do GitHub Pages propagou
-      toast.className = 'toast info';
-      toast.innerHTML = '⚡ Compilado! Sincronizando CDN do GitHub (aguarde alguns segundos)...';
-      await new Promise(r => setTimeout(r, 20000)); // Espera 20s de propagação real
+    // Quando o GitHub responder que concluiu o build:
+    toast.className = 'toast success';
+    toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
+    setTimeout(() => toast.remove(), 30000);
 
-      toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
-      
-      // Exibe a mensagem final por 30 segundos
-      setTimeout(() => toast.remove(), 30000);
-    }
   } catch (error) {
-    if (!isTimedOut) {
-      clearTimeout(timeoutId);
-      toast.className = 'toast success';
-      toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
-      setTimeout(() => toast.remove(), 30000); // 30s na tela
-    }
+    // Se o repositório não usa Pages ou a API não possui build ativo
+    toast.className = 'toast success';
+    toast.innerHTML = '💾 Alteração gravada no repositório com sucesso!';
+    setTimeout(() => toast.remove(), 4000);
   }
 }
 
