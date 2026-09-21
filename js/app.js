@@ -1,746 +1,787 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-}
-
-/* VARIÁVEIS DE COR PARA TEMAS */
-:root {
-  --bg-body: #f4f6f8;
-  --bg-app: #ffffff;
-  --text-main: #333333;
-  --text-heading: #24292e;
-  --border-color: #eaeef2;
-  --list-border: #eee;
-  --hover-bg: #f0f3f6;
-  --input-bg: #ffffff;
-  --input-border: #ccc;
-  --popover-bg: #ffffff;
-  --popover-border: #e1e4e8;
-}
-
-body.dark-mode {
-  --bg-body: #0d1117;
-  --bg-app: #161b22;
-  --text-main: #c9d1d9;
-  --text-heading: #f0f6fc;
-  --border-color: #30363d;
-  --list-border: #21262d;
-  --hover-bg: #21262d;
-  --input-bg: #0d1117;
-  --input-border: #30363d;
-  --popover-bg: #161b22;
-  --popover-border: #30363d;
-}
-
-body {
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  padding: 15px;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-#app {
-  max-width: 1200px;
-  margin: 0 auto;
-  background: var(--bg-app);
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: background-color 0.2s;
-}
-
-/* Header Principal */
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 10px;
-  position: relative;
-}
-
-h1, h2, h3 { color: var(--text-heading); }
-
-section { margin-top: 15px; }
-
-input[type="password"], input[type="text"], select.menu-select {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  background-color: var(--input-bg);
-  color: var(--text-main);
-}
-
-/* GRUPOS DE BOTOES NO CABEÇALHO */
-.header-tools-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.icon-btn {
-  background-color: var(--hover-bg);
-  color: var(--text-heading);
-  border: 1px solid var(--popover-border);
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  font-size: 18px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-
-.icon-btn:hover {
-  background-color: var(--border-color);
-}
-
-/* DESTAQUE DO NOME DO REPOSITÓRIO */
-.repo-highlight-title {
-  color: #0969da;
-  font-weight: 700;
-}
-
-/* ESTILO NORMAL PARA O NOME DO ARQUIVO SELECIONADO */
-.file-title-label {
-  font-weight: 700;
-  color: var(--text-heading);
-}
-
-.file-title-normal {
-  font-weight: 400 !important;
-  color: var(--text-main);
-}
-
-/* PADRONIZAÇÃO DE BOTÕES */
-button {
-  background-color: #2da44e;
-  color: #fff;
-  border: 2px solid transparent;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.2s, opacity 0.2s, border-color 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  outline: none;
-}
-
-button:hover { background-color: #2c974b; }
-
-/* BOTÃO DE VOLTAR */
-#back-to-repos-btn .btn-icon-back {
-  display: none;
-}
-
-/* EXPLORER BUTTONS */
-.explorer-btn {
-  padding: 6px 10px !important;
-  font-size: 14px !important;
-  min-width: 36px !important;
-  height: 34px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* COR VERMELHA PADRÃO DOS BOTÕES DE EXCLUSÃO */
-button.danger-btn, .power-btn {
-  background-color: #cf222e !important;
-  color: #fff !important;
-}
-
-button.danger-btn:hover, .power-btn:hover {
-  background-color: #cf222e !important;
-}
-
-button.secondary-btn { background-color: #0969da; }
-button.secondary-btn:hover { background-color: #0451a5; }
-
-/* BORDA NO MODO DE EXCLUSÃO */
-button.delete-mode-active {
-  background-color: #cf222e !important;
-  border-color: #f1e05a !important;
-  box-shadow: 0 0 0 2px rgba(241, 224, 90, 0.8) !important;
-}
-
-/* POPOVERS FLUTUANTES */
-#settings-wrapper, #logout-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.power-btn {
-  border-radius: 6px;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  box-shadow: 0 2px 5px rgba(207, 34, 46, 0.3);
-}
-
-.popover-hidden {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.popover-visible {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-/* POPOVER CONFIGURAÇÕES: SEMPRE ABRE PARA BAIXO */
-#settings-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: var(--popover-bg);
-  padding: 10px;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  border: 1px solid var(--popover-border);
-  z-index: 1000;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 190px;
-  transform: translateY(-8px);
-}
-
-#settings-popover.popover-visible {
-  transform: translateY(0);
-}
-
-/* POPOVER DESCONECTAR (POWER): ABRE PARA A ESQUERDA NO DESKTOP */
-#logout-popover {
-  position: absolute;
-  top: 50%;
-  right: 100%;
-  transform: translateY(-50%) translateX(-8px);
-  background: var(--popover-bg);
-  padding: 10px;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  border: 1px solid var(--popover-border);
-  z-index: 1000;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 180px;
-}
-
-#logout-popover.popover-visible {
-  transform: translateY(-50%) translateX(-8px);
-}
-
-.popover-menu-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.popover-menu-item .menu-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.menu-select {
-  padding: 4px 8px;
-  margin: 0;
-  font-size: 12px;
-  width: auto;
-}
-
-.help-link-btn {
-  display: block;
-  width: 100%;
-  text-align: center;
-  padding: 6px 10px;
-  background-color: var(--hover-bg);
-  color: var(--text-main);
-  border: 1px solid var(--popover-border);
-  border-radius: 4px;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.help-link-btn:hover {
-  background-color: var(--border-color);
-}
-
-#logout-btn {
-  font-size: 13px;
-  padding: 8px 12px;
-  width: 100%;
-}
-
-/* VISIBILIDADE DOS BOTÕES DE AÇÃO DO EDITOR */
-.action-hidden {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-.action-visible {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  visibility: visible;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-button.save-disabled {
-  background-color: #8c959f !important;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-button.save-active {
-  background-color: #2da44e !important;
-  cursor: pointer;
-  opacity: 1;
-}
-
-button.preview-disabled {
-  background-color: #8c959f !important;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-button.preview-active {
-  background-color: #0969da !important;
-  cursor: pointer;
-  opacity: 1;
-}
-
-.dashboard-header, .editor-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-#back-to-repos-btn {
-  background-color: #6e7681;
-  padding: 10px 16px;
-  font-size: 14px;
-}
-
-#back-to-repos-btn:hover { background-color: #57606a; }
-
-#repo-list, #file-tree {
-  list-style: none;
-  margin-top: 10px;
-}
-
-#repo-list li {
-  padding: 12px;
-  border-bottom: 1px solid var(--list-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.repo-link {
-  color: #0969da;
-  font-weight: 600;
-  font-size: 16px;
-  cursor: pointer;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.repo-link:hover {
-  text-decoration: underline;
-  color: #218bff;
-}
-
-/* ÁRVORE DE ARQUIVOS */
-#file-tree li {
-  padding: 8px 12px;
-  min-height: 44px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--list-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: background-color 0.15s ease;
-}
-
-#file-tree li:hover { background-color: var(--hover-bg); }
-
-.tree-item-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-}
-
-.is-folder {
-  font-weight: 700;
-  color: var(--text-heading);
-}
-
-.is-file {
-  font-weight: 400;
-  color: var(--text-main);
-}
-
-.tree-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-.tree-item-actions.visible-action {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.tree-item-actions button {
-  padding: 2px 8px !important;
-  font-size: 12px !important;
-  height: 26px !important;
-  line-height: 1 !important;
-}
-
-.workspace {
-  display: flex;
-  flex-direction: row;
-  gap: 20px;
-  margin-top: 10px;
-}
-
-.file-explorer {
-  width: 30%;
-  border-right: 1px solid var(--border-color);
-  padding-right: 15px;
-}
-
-.explorer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.explorer-actions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.path-display {
-  font-size: 13px;
-  color: #888;
-  margin-top: 6px;
-  word-break: break-all;
-}
-
-.code-editor-area {
-  width: 70%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* HEADER DO EDITOR */
-.editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  min-height: 42px;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-#current-file-title {
-  font-size: 18px;
-  color: var(--text-heading);
-  word-break: break-all;
-}
-
-.editor-actions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-height: 36px;
-  margin-left: auto;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.icon-svg {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#monaco-container {
-  width: 100%;
-  height: 520px;
-  min-height: 520px;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-}
-
-/* CAIXA DE TEXTO MOBILE */
-#mobile-editor {
-  display: none;
-  width: 100%;
-  height: 400px;
-  min-height: 300px;
-  font-family: monospace;
-  font-size: 15px;
-  padding: 10px;
-  border: 1px solid var(--input-border);
-  background-color: var(--input-bg);
-  color: var(--text-main);
-  border-radius: 4px;
-  resize: vertical;
-  margin-top: 4px;
-}
-
-/* FULLSCREEN */
-.fullscreen-editor {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 99999 !important;
-  background-color: var(--bg-app) !important;
-  padding: 10px !important;
-  margin: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  box-sizing: border-box !important;
-  overflow: hidden !important;
-}
-
-.fullscreen-editor .editor-header {
-  flex-shrink: 0 !important;
-  width: 100% !important;
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;
-  padding-top: 0 !important;
-  display: flex !important;
-  flex-wrap: wrap !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  gap: 8px !important;
-  background: var(--bg-app) !important;
-}
-
-/* DESKTOP */
-@media (min-width: 769px) {
-  #mobile-editor {
-    display: none !important;
-  }
-  .fullscreen-editor #monaco-container {
-    flex: 1 !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    display: block !important;
+let github = null;
+let currentUser = null;
+let currentRepo = null;
+let currentFile = null;
+let originalFileContent = '';
+let hasUnsavedChanges = false;
+let currentFolderPath = '';
+let monacoEditor = null;
+let isExpanded = false;
+let isDeleteMode = false;
+let isDarkMode = false;
+const isMobile = window.innerWidth <= 768;
+
+const tokenInput = document.getElementById('token-input');
+const connectBtn = document.getElementById('connect-btn');
+const authStatus = document.getElementById('auth-status');
+
+const mainHeader = document.getElementById('main-header');
+const loginSection = document.getElementById('login-section');
+const dashboardSection = document.getElementById('dashboard-section');
+const editorSection = document.getElementById('editor-section');
+
+const repoList = document.getElementById('repo-list');
+const fileTree = document.getElementById('file-tree');
+const currentRepoTitle = document.getElementById('current-repo-title');
+const currentFileTitle = document.getElementById('current-file-title');
+
+const saveFileBtn = document.getElementById('save-file-btn');
+const deleteFileBtn = document.getElementById('delete-file-btn');
+const newFileBtn = document.getElementById('new-file-btn');
+const newFolderBtn = document.getElementById('new-folder-btn');
+const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
+const newRepoBtn = document.getElementById('new-repo-btn');
+
+const loginHeaderTools = document.getElementById('login-header-tools');
+const headerActionsWrapper = document.getElementById('header-actions-wrapper');
+
+// ELEMENTOS DE CONFIGURAÇÃO E LOGOUT
+const settingsWrapper = document.getElementById('settings-wrapper');
+const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+const settingsPopover = document.getElementById('settings-popover');
+const popoverThemeBtn = document.getElementById('popover-theme-btn');
+
+const logoutWrapper = document.getElementById('logout-wrapper');
+const logoutPopover = document.getElementById('logout-popover');
+const powerToggleBtn = document.getElementById('power-toggle-btn');
+const logoutBtn = document.getElementById('logout-btn');
+
+const loginThemeBtn = document.getElementById('login-theme-btn');
+
+const backToReposBtn = document.getElementById('back-to-repos-btn');
+const currentPathDisplay = document.getElementById('current-path-display');
+const mobileEditor = document.getElementById('mobile-editor');
+
+const previewBtn = document.getElementById('preview-btn');
+const expandBtn = document.getElementById('expand-btn');
+const expandIcon = document.getElementById('expand-icon');
+const expandText = document.getElementById('expand-text');
+const fileExplorer = document.getElementById('file-explorer');
+const codeEditorArea = document.getElementById('code-editor-area');
+
+const previewModal = document.getElementById('preview-modal');
+const closePreviewBtn = document.getElementById('close-preview-btn');
+const previewFrame = document.getElementById('preview-frame');
+
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingMessage = document.getElementById('loading-message');
+const toastContainer = document.getElementById('toast-container');
+
+// SVG ÍCONES PARA RETRAIR E EXPANDIR
+const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function showLoading(message = 'Carregando...') {
+  loadingMessage.textContent = message;
+  loadingOverlay.style.display = 'flex';
+}
+
+function hideLoading() {
+  loadingOverlay.style.display = 'none';
+}
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+
+  toastContainer.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 3500);
+}
+
+// GERENCIAMENTO DE TEMA DA PÁGINA
+function toggleTheme() {
+  isDarkMode = !isDarkMode;
+  if (isDarkMode) {
+    document.body.classList.add('dark-mode');
+    loginThemeBtn.textContent = '☀️';
+    popoverThemeBtn.textContent = '☀️ Claro';
+    localStorage.setItem('theme', 'dark');
+  } else {
+    document.body.classList.remove('dark-mode');
+    loginThemeBtn.textContent = '🌙';
+    popoverThemeBtn.textContent = '🌙 Escuro';
+    localStorage.setItem('theme', 'light');
   }
 }
 
-/* MOBILE RESPONSIVIDADE E BOTÃO DE CONFIGURAÇÕES */
-@media (max-width: 768px) {
-  body { padding: 8px; }
-  #app { padding: 12px; }
+loginThemeBtn.addEventListener('click', toggleTheme);
+popoverThemeBtn.addEventListener('click', toggleTheme);
 
-  #monaco-container { display: none !important; }
+function setActionButtonVisibility(button, visible) {
+  if (visible) {
+    button.classList.remove('action-hidden');
+    button.classList.add('action-visible');
+  } else {
+    button.classList.remove('action-visible');
+    button.classList.add('action-hidden');
+  }
+}
 
-  .code-editor-area {
-    margin-top: 15px;
-    border-top: 1px dashed var(--border-color);
-    padding-top: 15px;
-    width: 100%;
+function updateSaveButtonState(modified) {
+  hasUnsavedChanges = modified;
+  const labelSpan = saveFileBtn.querySelector('.btn-label');
+  
+  if (modified) {
+    saveFileBtn.classList.remove('save-disabled');
+    saveFileBtn.classList.add('save-active');
+    saveFileBtn.disabled = false;
+    if (labelSpan) labelSpan.textContent = '* Salvar';
+  } else {
+    saveFileBtn.classList.remove('save-active');
+    saveFileBtn.classList.add('save-disabled');
+    saveFileBtn.disabled = true;
+    if (labelSpan) labelSpan.textContent = 'Salvar';
+  }
+}
+
+function checkUnsavedChanges() {
+  if (hasUnsavedChanges) {
+    return confirm('Você possui alterações não salvas no arquivo atual. Deseja descartá-las?');
+  }
+  return true;
+}
+
+function getLanguageFromFilename(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': case 'htm': return 'html';
+    case 'css': return 'css';
+    case 'js': return 'javascript';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    default: return 'plaintext';
+  }
+}
+
+// INICIALIZAÇÃO DO EDITOR MONACO FIXADO SEMPRE NO TEMA ESCURO (VS-DARK)
+if (!isMobile) {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: '// Selecione um arquivo para começar a editar...',
+      language: 'plaintext',
+      theme: 'vs-dark', // Sempre escuro estilo VS Code
+      automaticLayout: true
+    });
+
+    monacoEditor.onDidChangeModelContent(() => {
+      if (currentFile) {
+        const currentContent = monacoEditor.getValue();
+        updateSaveButtonState(currentContent !== originalFileContent);
+      }
+    });
+  });
+}
+
+mobileEditor.addEventListener('input', () => {
+  if (currentFile) {
+    const currentContent = mobileEditor.value;
+    updateSaveButtonState(currentContent !== originalFileContent);
+  }
+});
+
+window.addEventListener('load', () => {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    isDarkMode = false;
+    toggleTheme();
   }
 
-  .workspace { flex-direction: column; }
-  .file-explorer {
-    width: 100%;
-    border-right: none;
-    padding-right: 0;
+  const savedToken = localStorage.getItem('gh_token');
+  if (savedToken) {
+    tokenInput.value = savedToken;
+    autoConnect(savedToken);
+  }
+});
+
+async function autoConnect(token) {
+  showLoading('Reconectando ao GitHub...');
+  try {
+    github = new GitHubAPI(token);
+    currentUser = await github.getUser();
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+    await loadRepositories();
+    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
+  } catch (error) {
+    showToast('Sessão expirada ou token inválido.', 'error');
+    localStorage.removeItem('gh_token');
+  } finally {
+    hideLoading();
+  }
+}
+
+connectBtn.addEventListener('click', async () => {
+  const token = tokenInput.value.trim();
+  if (!token) {
+    showToast('Por favor, informe o token.', 'error');
+    return;
   }
 
-  .editor-top-bar {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+  showLoading('Autenticando...');
+  try {
+    github = new GitHubAPI(token);
+    currentUser = await github.getUser();
+
+    localStorage.setItem('gh_token', token);
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+    await loadRepositories();
+    showToast('Conectado com sucesso!');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+// POPOVERS
+settingsToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  logoutPopover.classList.remove('popover-visible');
+  logoutPopover.classList.add('popover-hidden');
+
+  const isVisible = settingsPopover.classList.contains('popover-visible');
+  if (isVisible) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  } else {
+    settingsPopover.classList.remove('popover-hidden');
+    settingsPopover.classList.add('popover-visible');
+  }
+});
+
+powerToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  settingsPopover.classList.remove('popover-visible');
+  settingsPopover.classList.add('popover-hidden');
+
+  const isVisible = logoutPopover.classList.contains('popover-visible');
+  if (isVisible) {
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
+  } else {
+    logoutPopover.classList.remove('popover-hidden');
+    logoutPopover.classList.add('popover-visible');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!settingsWrapper.contains(e.target)) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  }
+  if (!logoutWrapper.contains(e.target)) {
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  if (!checkUnsavedChanges()) return;
+  localStorage.removeItem('gh_token');
+  location.reload();
+});
+
+async function loadRepositories() {
+  showLoading('Buscando repositórios...');
+  repoList.innerHTML = '';
+  try {
+    const repos = await github.getRepositories();
+    mainHeader.style.display = 'flex';
+    loginSection.style.display = 'none';
+    editorSection.style.display = 'none';
+    dashboardSection.style.display = 'block';
+
+    repoList.innerHTML = '';
+    repos.forEach(repo => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <a class="repo-link" onclick="selectRepo('${repo.name}')">${repo.name}</a>
+        <div>
+          <button class="danger-btn" style="padding: 4px 8px; font-size: 12px;" onclick="confirmDeleteRepo('${repo.name}')" title="Excluir Repositório">✖</button>
+        </div>
+      `;
+      repoList.appendChild(li);
+    });
+  } catch (error) {
+    showToast('Erro ao listar repositórios: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+newRepoBtn.addEventListener('click', async () => {
+  const repoName = prompt('Digite o nome do novo repositório:');
+  if (!repoName) return;
+
+  showLoading('Criando e atualizando lista...');
+  try {
+    await github.createRepository(repoName, 'Criado via Web CMS');
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const repos = await github.getRepositories();
+      if (repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
+    showToast('Repositório criado com sucesso!');
+    await loadRepositories();
+  } catch (error) {
+    showToast('Erro ao criar repositório: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+async function confirmDeleteRepo(repoName) {
+  const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
+  if (confirmText !== repoName) {
+    showToast('Nome incorreto. Operação cancelada.', 'error');
+    return;
   }
 
-  #back-to-repos-btn .btn-icon-back { display: inline-block; }
-  #back-to-repos-btn .btn-text { display: none; }
-  #back-to-repos-btn { padding: 8px 12px; font-size: 16px; }
+  showLoading('Excluindo e atualizando...');
+  try {
+    await github.deleteRepository(currentUser.login, repoName);
+    let attempts = 0;
+    let removed = false;
+    while (attempts < 4 && !removed) {
+      await delay(1000);
+      const repos = await github.getRepositories();
+      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) {
+        removed = true;
+      }
+      attempts++;
+    }
 
-  .editor-header {
-    margin-bottom: 6px;
-    flex-direction: row;
-    align-items: center;
+    showToast('Repositório excluído com sucesso!');
+    await loadRepositories();
+  } catch (error) {
+    showToast('Erro ao excluir repositório: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function selectRepo(repoName) {
+  currentRepo = repoName;
+  currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
+
+  mainHeader.style.display = 'none';
+  dashboardSection.style.display = 'none';
+  editorSection.style.display = 'block';
+
+  if (monacoEditor && !isMobile) {
+    setTimeout(() => monacoEditor.layout(), 100);
   }
 
-  .editor-actions {
-    width: auto;
-    justify-content: flex-end;
-    gap: 4px;
+  currentFolderPath = '';
+  await loadFiles(currentFolderPath);
+}
+
+toggleDeleteModeBtn.addEventListener('click', () => {
+  isDeleteMode = !isDeleteMode;
+  toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
+  showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
+  
+  const actionContainers = document.querySelectorAll('.tree-item-actions');
+  actionContainers.forEach(container => {
+    if (isDeleteMode) {
+      container.classList.add('visible-action');
+    } else {
+      container.classList.remove('visible-action');
+    }
+  });
+});
+
+async function loadFiles(path = '') {
+  showLoading('Carregando arquivos...');
+  currentPathDisplay.textContent = path ? `/${path}` : '/';
+  fileTree.innerHTML = '';
+
+  try {
+    let contents = await github.getContents(currentUser.login, currentRepo, path);
+    
+    if (!Array.isArray(contents)) {
+      contents = [];
+    }
+
+    fileTree.innerHTML = '';
+
+    contents.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      }
+      return a.type === 'dir' ? -1 : 1;
+    });
+
+    if (path !== '') {
+      const backLi = document.createElement('li');
+      backLi.innerHTML = '<span class="tree-item-title is-folder">⬅️ .. (Voltar pasta)</span>';
+      backLi.style.cursor = 'pointer';
+      backLi.addEventListener('click', async () => {
+        if (!checkUnsavedChanges()) return;
+        const pathParts = currentFolderPath.split('/');
+        pathParts.pop();
+        currentFolderPath = pathParts.join('/');
+        await loadFiles(currentFolderPath);
+      });
+      fileTree.appendChild(backLi);
+    }
+
+    for (const item of contents) {
+      const li = document.createElement('li');
+      let icon = item.type === 'dir' ? '📁' : '📄';
+      const textClass = item.type === 'dir' ? 'is-folder' : 'is-file';
+
+      li.innerHTML = `
+        <span class="tree-item-title ${textClass}"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
+        <div class="tree-item-actions ${isDeleteMode ? 'visible-action' : ''}">
+          <button class="danger-btn" title="Excluir">✖</button>
+        </div>
+      `;
+
+      const titleSpan = li.querySelector('.tree-item-title');
+      const deleteBtn = li.querySelector('button');
+
+      if (item.type === 'dir') {
+        github.getContents(currentUser.login, currentRepo, item.path).then(subContents => {
+          const iconSpan = li.querySelector('.item-icon');
+          if (iconSpan) {
+            const realFiles = Array.isArray(subContents) ? subContents.filter(f => f.name !== '.gitkeep') : [];
+            iconSpan.textContent = realFiles.length > 0 ? '📂' : '📁';
+          }
+        }).catch(() => {});
+
+        titleSpan.addEventListener('click', async () => {
+          if (!checkUnsavedChanges()) return;
+          currentFolderPath = item.path;
+          await loadFiles(currentFolderPath);
+        });
+
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFolder(item.path, item.name);
+        });
+
+      } else if (item.type === 'file') {
+        titleSpan.addEventListener('click', () => {
+          if (!checkUnsavedChanges()) return;
+          openFile(item.path);
+        });
+
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFileByPath(item.path, item.sha);
+        });
+      }
+
+      fileTree.appendChild(li);
+    }
+  } catch (error) {
+    if (path !== '') {
+      const pathParts = path.split('/');
+      pathParts.pop();
+      currentFolderPath = pathParts.join('/');
+      await loadFiles(currentFolderPath);
+    } else {
+      fileTree.innerHTML = '<li>Nenhum arquivo encontrado.</li>';
+      hideLoading();
+    }
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deleteFolder(folderPath, folderName) {
+  const confirmText = prompt(`Tem certeza que deseja excluir a pasta "${folderName}" e TODO o seu conteúdo? Digite "${folderName}" para confirmar:`);
+  if (confirmText !== folderName) {
+    showToast('Confirmação incorreta. Operação cancelada.', 'error');
+    return;
   }
 
-  .editor-actions .btn-label { display: none; }
+  showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
+  try {
+    await github.deleteFolder(currentUser.login, currentRepo, folderPath);
+    showToast('Pasta excluída com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao excluir pasta: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
 
-  .editor-actions button {
-    padding: 6px 10px;
-    font-size: 14px;
-    min-width: 36px;
-    height: 36px;
+async function deleteFileByPath(filePath, sha) {
+  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
+  if (!confirmDelete) return;
+
+  showLoading('Excluindo arquivo...');
+  try {
+    await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
+
+    if (currentFile && currentFile.path === filePath) {
+      currentFile = null;
+      originalFileContent = '';
+      updateSaveButtonState(false);
+      
+      if (isMobile) {
+        mobileEditor.value = '';
+        mobileEditor.style.display = 'none';
+      } else {
+        monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+      }
+
+      setActionButtonVisibility(saveFileBtn, false);
+      setActionButtonVisibility(deleteFileBtn, false);
+      setActionButtonVisibility(expandBtn, false);
+      setActionButtonVisibility(previewBtn, false);
+      currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
+    }
+
+    showToast('Arquivo excluído com sucesso!');
+    await loadFiles(currentFolderPath);
+
+  } catch (error) {
+    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function openFile(filePath) {
+  showLoading('Abrindo arquivo...');
+
+  try {
+    const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
+    const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
+
+    currentFile = {
+      path: fileData.path,
+      sha: fileData.sha,
+      name: fileData.name
+    };
+
+    originalFileContent = decodedContent;
+    currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
+
+    if (isMobile) {
+      mobileEditor.value = decodedContent;
+      mobileEditor.style.display = 'block';
+    } else if (monacoEditor) {
+      monacoEditor.setValue(decodedContent);
+      const language = getLanguageFromFilename(fileData.name);
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+      setTimeout(() => monacoEditor.layout(), 50);
+    }
+
+    updateSaveButtonState(false);
+
+    setActionButtonVisibility(saveFileBtn, true);
+    setActionButtonVisibility(deleteFileBtn, true);
+    setActionButtonVisibility(expandBtn, true);
+    setActionButtonVisibility(previewBtn, true);
+
+    if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
+      previewBtn.disabled = false;
+      previewBtn.classList.remove('preview-disabled');
+      previewBtn.classList.add('preview-active');
+    } else {
+      previewBtn.disabled = true;
+      previewBtn.classList.remove('preview-active');
+      previewBtn.classList.add('preview-disabled');
+    }
+
+  } catch (error) {
+    showToast('Erro ao abrir arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+saveFileBtn.addEventListener('click', async () => {
+  if (!currentFile || !hasUnsavedChanges) return;
+
+  showLoading('Salvando alterações no GitHub...');
+
+  try {
+    const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
+    const result = await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      currentFile.path,
+      newContent,
+      currentFile.sha
+    );
+
+    currentFile.sha = result.content.sha;
+    originalFileContent = newContent;
+    updateSaveButtonState(false);
+    showToast('Alterações salvas com sucesso!');
+  } catch (error) {
+    showToast('Erro ao salvar: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+expandBtn.addEventListener('click', () => {
+  isExpanded = !isExpanded;
+
+  if (isExpanded) {
+    codeEditorArea.classList.add('fullscreen-editor');
+    fileExplorer.style.display = 'none';
+    expandIcon.innerHTML = retractSVG;
+    if (expandText) expandText.textContent = 'Retrair';
+  } else {
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandIcon.innerHTML = expandSVG;
+    if (expandText) expandText.textContent = 'Expandir';
   }
 
-  /* REAJUSTE DO POPOVER DE DESCONECTAR NO MOBILE */
-  #logout-popover {
-    top: calc(100% + 8px);
-    right: 0;
-    left: auto;
-    transform: translateY(-8px);
+  if (monacoEditor && !isMobile) {
+    setTimeout(() => monacoEditor.layout(), 50);
+  }
+});
+
+previewBtn.addEventListener('click', () => {
+  if (!currentFile || previewBtn.disabled) return;
+
+  const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  previewModal.style.display = 'flex';
+
+  const doc = previewFrame.contentWindow.document;
+  doc.open();
+  doc.write(content);
+  doc.close();
+});
+
+closePreviewBtn.addEventListener('click', () => {
+  previewModal.style.display = 'none';
+});
+
+newFileBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html):');
+  if (!filename) return;
+
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
+
+  showLoading('Criando arquivo e atualizando...');
+  try {
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      fullPath,
+      '',
+      null,
+      `Criado arquivo ${filename} via Web CMS`
+    );
+
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
+      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === filename.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
+    showToast('Arquivo criado com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao criar arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+newFolderBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  const folderName = prompt('Digite o nome da nova pasta:');
+  if (!folderName) return;
+
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
+
+  showLoading('Criando pasta...');
+  try {
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      fullPath,
+      '',
+      null,
+      `Criada pasta ${folderName} via Web CMS`
+    );
+
+    let attempts = 0;
+    let found = false;
+    while (attempts < 4 && !found) {
+      await delay(1000);
+      const contents = await github.getContents(currentUser.login, currentRepo, currentFolderPath);
+      if (Array.isArray(contents) && contents.some(c => c.name.toLowerCase() === folderName.toLowerCase())) {
+        found = true;
+      }
+      attempts++;
+    }
+
+    showToast('Pasta criada com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao criar pasta: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+deleteFileBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  await deleteFileByPath(currentFile.path, currentFile.sha);
+});
+
+backToReposBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  currentFile = null;
+  originalFileContent = '';
+  currentFolderPath = '';
+  updateSaveButtonState(false);
+
+  if (isExpanded) {
+    isExpanded = false;
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandIcon.innerHTML = expandSVG;
+    if (expandText) expandText.textContent = 'Expandir';
   }
 
-  #logout-popover.popover-visible {
-    transform: translateY(0);
+  if (isMobile) {
+    mobileEditor.value = '';
+    mobileEditor.style.display = 'none';
+  } else {
+    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
   }
 
-  #toast-container { left: 20px; right: 20px; bottom: 15px; }
-}
-
-/* MODAL PREVIEW */
-#preview-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: #fff;
-  z-index: 100000;
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-content {
-  background: #fff;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.preview-header {
-  padding: 10px 20px;
-  background: #1e1e1e;
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #333;
-}
-
-.preview-header h3 { font-size: 16px; font-weight: 600; color: #fff; }
-
-#preview-frame {
-  width: 100%;
-  height: calc(100vh - 55px);
-  border: none;
-  background: #fff;
-}
-
-/* LOADING & TOAST */
-#loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  z-index: 100001;
-  color: #fff;
-  font-weight: bold;
-}
-
-.spinner {
-  width: 45px;
-  height: 45px;
-  border: 5px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 12px;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-#toast-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 100002;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.toast {
-  padding: 12px 20px;
-  border-radius: 6px;
-  color: #fff;
-  font-weight: bold;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  animation: slideIn 0.3s ease-out;
-}
-
-.toast.success { background-color: #2da44e; }
-.toast.error { background-color: #cf222e; }
-
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
+  setActionButtonVisibility(saveFileBtn, false);
+  setActionButtonVisibility(deleteFileBtn, false);
+  setActionButtonVisibility(expandBtn, false);
+  setActionButtonVisibility(previewBtn, false);
+  currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
+  await loadRepositories();
+});
