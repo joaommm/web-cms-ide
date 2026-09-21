@@ -98,13 +98,12 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DE DEPLOYMENT COM TIMEOUT DE 15s E EXIBIÇÃO FINAL DE 30s
+// MONITORAMENTO DE DEPLOYMENT COM DELAY DE PROPAGAÇÃO DE CDN + TOAST DE 30s
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
   const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub...', 'info', 0);
 
-  // Timeout de segurança: 15 segundos para parar a verificação se o GitHub demorar muito
   let isTimedOut = false;
   const timeoutId = setTimeout(() => {
     isTimedOut = true;
@@ -122,9 +121,15 @@ async function monitorPageDeployment() {
 
     if (!isTimedOut) {
       clearTimeout(timeoutId);
+      
+      // Delay de 15 segundos para a atualização do CDN do GitHub Pages
+      toast.className = 'toast info';
+      toast.innerHTML = '⚡ Compilação concluída! Aguardando propagação nos servidores...';
+      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      // Toast Verde visível por 30 segundos
       toast.className = 'toast success';
       toast.innerHTML = '✨ Site publicado e atualizado com sucesso no GitHub Pages!';
-      // Exibe a mensagem de sucesso por até 30 segundos
       setTimeout(() => toast.remove(), 30000);
     }
   } catch (error) {
