@@ -728,20 +728,21 @@ button.preview-active {
   flex-direction: column;
   gap: 10px;
 }
- 
+
 .toast {
   padding: 12px 20px;
   border-radius: 6px;
   color: #ffffff !important;
   font-weight: bold;
+  background-color: #24292e !important; /* Cor sólida padrão de fundo para impedir transparência */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation: slideIn 0.3s ease-out;
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.toast.info { background-color: #0969da; }
-.toast.success { background-color: #2da44e; }
-.toast.error { background-color: #cf222e; }
+.toast.info { background-color: #0969da !important; }
+.toast.success { background-color: #2da44e !important; }
+.toast.error { background-color: #cf222e !important; }
 
 @keyframes slideIn {
   from { transform: translateX(100%); opacity: 0; }
