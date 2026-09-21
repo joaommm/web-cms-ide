@@ -78,33 +78,27 @@ input[type="password"], input[type="text"], select.menu-select {
   color: var(--text-main);
 }
 
-/* TELA DE LOGIN FERRAMENTAS (AJUDA E TEMA) */
-.login-header-row {
+/* GRUPOS DE BOTOES NO CABEÇALHO */
+.header-tools-group {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-}
-
-.login-tools {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
 }
 
 .icon-btn {
   background-color: var(--hover-bg);
   color: var(--text-heading);
   border: 1px solid var(--popover-border);
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 6px;
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 .icon-btn:hover {
@@ -147,12 +141,12 @@ button {
 
 button:hover { background-color: #2c974b; }
 
-/* BOTÃO DE VOLTAR: NO DESKTOP APENAS TEXTO (SEM SÍMBOLO) */
+/* BOTÃO DE VOLTAR */
 #back-to-repos-btn .btn-icon-back {
   display: none;
 }
 
-/* PADRONIZAÇÃO DOS BOTÕES DO GERENCIADOR DE ARQUIVOS */
+/* EXPLORER BUTTONS */
 .explorer-btn {
   padding: 6px 10px !important;
   font-size: 14px !important;
@@ -176,23 +170,17 @@ button.danger-btn:hover, .power-btn:hover {
 button.secondary-btn { background-color: #0969da; }
 button.secondary-btn:hover { background-color: #0451a5; }
 
-/* INDICATIVO VISUAL DE BORDA NO MODO DE EXCLUSÃO */
+/* BORDA NO MODO DE EXCLUSÃO */
 button.delete-mode-active {
   background-color: #cf222e !important;
   border-color: #f1e05a !important;
   box-shadow: 0 0 0 2px rgba(241, 224, 90, 0.8) !important;
 }
 
-/* POPOVERS FLUTUANTES (CONFIGURAÇÕES E DESLIGAR) */
-#header-actions-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
+/* ENVOLTÓRIOS DOS POPOVERS FLUTUANTES */
 #settings-wrapper, #logout-wrapper {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
 }
 
@@ -206,29 +194,53 @@ button.delete-mode-active {
 
 .popover-hidden {
   opacity: 0;
-  transform: translateY(-50%) translateX(-16px);
   visibility: hidden;
   pointer-events: none;
 }
 
 .popover-visible {
   opacity: 1;
-  transform: translateY(-50%) translateX(-8px);
   visibility: visible;
   pointer-events: auto;
 }
 
-#settings-popover, #logout-popover {
+/* POPOVER CONFIGURAÇÕES: ABRE DIRETAMENTE PARA BAIXO DO BOTÃO ⚙️ */
+#settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  background: var(--popover-bg);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--popover-border);
+  z-index: 10000;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 200px;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+
+#settings-popover.popover-visible {
+  transform: translateY(0);
+}
+
+/* POPOVER DESCONECTAR (POWER): ABRE PARA A ESQUERDA NO DESKTOP */
+#logout-popover {
   position: absolute;
   top: 50%;
-  right: 100%;
-  transform: translateY(-50%) translateX(-8px);
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
   background: var(--popover-bg);
   padding: 10px;
   border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--popover-border);
-  z-index: 1000;
+  z-index: 10000;
   white-space: nowrap;
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
   display: flex;
@@ -237,11 +249,15 @@ button.delete-mode-active {
   min-width: 180px;
 }
 
+#logout-popover.popover-visible {
+  transform: translateY(-50%);
+}
+
 .popover-menu-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .popover-menu-item .menu-label {
@@ -281,7 +297,7 @@ button.delete-mode-active {
   width: 100%;
 }
 
-/* VISIBILIDADE E ESTADOS DOS BOTÕES DE AÇÃO */
+/* VISIBILIDADE DOS BOTÕES DE AÇÃO DO EDITOR */
 .action-hidden {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -308,7 +324,6 @@ button.save-active {
   opacity: 1;
 }
 
-/* BOTÃO PREVIEW DESABILITADO */
 button.preview-disabled {
   background-color: #8c959f !important;
   cursor: not-allowed;
@@ -402,7 +417,6 @@ button.preview-active {
   color: var(--text-main);
 }
 
-/* RECEPTÁCULO DE AÇÕES DO ITEM DA LISTA */
 .tree-item-actions {
   display: flex;
   align-items: center;
@@ -522,7 +536,7 @@ button.preview-active {
   margin-top: 4px;
 }
 
-/* MODO FULLSCREEN (EXPANDIDO) */
+/* FULLSCREEN */
 .fullscreen-editor {
   position: fixed !important;
   top: 0 !important;
@@ -568,14 +582,12 @@ button.preview-active {
   }
 }
 
-/* MOBILE */
+/* MOBILE RESPONSIVIDADE */
 @media (max-width: 768px) {
   body { padding: 8px; }
   #app { padding: 12px; }
 
-  #monaco-container {
-    display: none !important;
-  }
+  #monaco-container { display: none !important; }
 
   .code-editor-area {
     margin-top: 15px;
@@ -597,17 +609,9 @@ button.preview-active {
     align-items: center;
   }
 
-  #back-to-repos-btn .btn-icon-back {
-    display: inline-block;
-  }
-
-  #back-to-repos-btn .btn-text {
-    display: none;
-  }
-  #back-to-repos-btn {
-    padding: 8px 12px;
-    font-size: 16px;
-  }
+  #back-to-repos-btn .btn-icon-back { display: inline-block; }
+  #back-to-repos-btn .btn-text { display: none; }
+  #back-to-repos-btn { padding: 8px 12px; font-size: 16px; }
 
   .editor-header {
     margin-bottom: 6px;
@@ -621,9 +625,7 @@ button.preview-active {
     gap: 4px;
   }
 
-  .editor-actions .btn-label {
-    display: none;
-  }
+  .editor-actions .btn-label { display: none; }
 
   .editor-actions button {
     padding: 6px 10px;
@@ -632,23 +634,15 @@ button.preview-active {
     height: 36px;
   }
 
-  .fullscreen-editor #mobile-editor {
-    flex: 1 !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-  }
-  
-  #settings-popover, #logout-popover {
-    top: 48px;
+  /* REAJUSTE DO POPOVER DE DESCONECTAR NO MOBILE */
+  #logout-popover {
+    top: calc(100% + 8px);
     right: 0;
     left: auto;
-    transform: none;
+    transform: translateY(-5px);
   }
-  .popover-hidden {
-    transform: translateY(-8px);
-  }
-  .popover-visible {
+
+  #logout-popover.popover-visible {
     transform: translateY(0);
   }
 
@@ -687,11 +681,7 @@ button.preview-active {
   border-bottom: 1px solid #333;
 }
 
-.preview-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-}
+.preview-header h3 { font-size: 16px; font-weight: 600; color: #fff; }
 
 #preview-frame {
   width: 100%;
