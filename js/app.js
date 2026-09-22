@@ -74,7 +74,7 @@ const toastContainer = document.getElementById('toast-container');
 
 // SVG ÍCONES PARA RETRAIR E EXPANDIR
 const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
-const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M3 21l7-7"/></svg>`;
 
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
@@ -100,24 +100,28 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// GERENCIAMENTO DE ESTADO NA URL E DEEP LINKING
-function updateUrlState(repo = null, folder = '', file = null) {
-  const url = new URL(window.location.href);
-  
-  if (repo) {
-    url.searchParams.set('repo', repo);
-    if (folder) url.searchParams.set('folder', folder);
-    else url.searchParams.delete('folder');
-    
-    if (file) url.searchParams.set('file', file);
-    else url.searchParams.delete('file');
-  } else {
-    url.searchParams.delete('repo');
-    url.searchParams.delete('folder');
-    url.searchParams.delete('file');
-  }
+// GARANTE QUE APENAS A SEÇÃO CORRETA FIQUE VISÍVEL
+function showSection(sectionName) {
+  loginSection.style.display = 'none';
+  dashboardSection.style.display = 'none';
+  editorSection.style.display = 'none';
 
-  window.history.replaceState({}, '', url.toString());
+  if (sectionName === 'login') {
+    loginSection.style.display = 'block';
+    mainHeader.style.display = 'flex';
+    loginHeaderTools.style.display = 'flex';
+    headerActionsWrapper.style.display = 'none';
+  } else if (sectionName === 'dashboard') {
+    dashboardSection.style.display = 'block';
+    mainHeader.style.display = 'flex';
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+  } else if (sectionName === 'editor') {
+    editorSection.style.display = 'block';
+    mainHeader.style.display = 'none';
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+  }
 }
 
 // MONITORAMENTO INTELIGENTE E AUTO-RELOAD
@@ -128,11 +132,11 @@ async function monitorPageDeployment() {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      showToast('💾 Alterações salvas no repositório! <br><small>💡 Dica: O GitHub Pages não está ativado neste repositório.</small>', 'info', 7000);
+      showToast('💾 Alterações salvas no repositório!', 'info', 4000);
       return;
     }
 
-    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
+    const toast = showToast('🚀 Alteração enviada. Verificando publicação...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
@@ -143,15 +147,15 @@ async function monitorPageDeployment() {
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>(Atualização automática desativada nas configurações)</small>';
-      setTimeout(() => toast.remove(), 10000);
+      toast.innerHTML = '✨ Site publicado com sucesso!';
+      setTimeout(() => toast.remove(), 6000);
       return;
     }
 
     if (hasUnsavedChanges) {
       toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui alterações pendentes, atualize manualmente quando salvar.</small>';
-      setTimeout(() => toast.remove(), 10000);
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui alterações pendentes no editor.</small>';
+      setTimeout(() => toast.remove(), 8000);
       return;
     }
 
@@ -160,20 +164,17 @@ async function monitorPageDeployment() {
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a página e restaurando sessão em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
-
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('_v', Date.now());
-        window.location.href = currentUrl.toString();
+        window.location.reload();
       }
     }, 1000);
 
   } catch (error) {
-    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
+    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 4000);
   }
 }
 
@@ -302,6 +303,8 @@ window.addEventListener('load', () => {
   if (savedToken) {
     tokenInput.value = savedToken;
     autoConnect(savedToken);
+  } else {
+    showSection('login');
   }
 });
 
@@ -310,32 +313,12 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
-    loginHeaderTools.style.display = 'none';
-    headerActionsWrapper.style.display = 'flex';
-
-    // Roteamento inteligente por URL Parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetRepo = urlParams.get('repo');
-    const targetFolder = urlParams.get('folder') || '';
-    const targetFile = urlParams.get('file');
-
-    if (targetRepo) {
-      await selectRepo(targetRepo, false);
-      if (targetFolder) {
-        currentFolderPath = targetFolder;
-        await loadFiles(targetFolderPath);
-      }
-      if (targetFile) {
-        await openFile(targetFile);
-      }
-    } else {
-      await loadRepositories();
-    }
-
+    await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
     showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
+    showSection('login');
   } finally {
     hideLoading();
   }
@@ -354,12 +337,11 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
-    loginHeaderTools.style.display = 'none';
-    headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast('Conectado com sucesso!');
   } catch (error) {
     showToast(error.message, 'error');
+    showSection('login');
   } finally {
     hideLoading();
   }
@@ -410,21 +392,16 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
-  updateUrlState(null);
   location.reload();
 });
 
 async function loadRepositories() {
   showLoading('Buscando repositórios...');
   repoList.innerHTML = '';
-  updateUrlState(null);
 
   try {
     const repos = await github.getRepositories();
-    mainHeader.style.display = 'flex';
-    loginSection.style.display = 'none';
-    editorSection.style.display = 'none';
-    dashboardSection.style.display = 'block';
+    showSection('dashboard');
 
     repoList.innerHTML = '';
     repos.forEach(repo => {
@@ -448,10 +425,9 @@ newRepoBtn.addEventListener('click', async () => {
   const repoName = prompt('Digite o nome do novo repositório:');
   if (!repoName) return;
 
-  showLoading('Criando e aguardando confirmação do GitHub...');
+  showLoading('Criando repositório...');
   try {
     await github.createRepository(repoName, 'Criado via Web CMS');
-    await github.waitForRepoExist(repoName);
     showToast('Repositório criado com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -467,18 +443,9 @@ async function confirmDeleteRepo(repoName) {
     return;
   }
 
-  showLoading('Excluindo e sincronizando...');
+  showLoading('Excluindo repositório...');
   try {
     await github.deleteRepository(currentUser.login, repoName);
-    
-    let attempts = 0;
-    while (attempts < 10) {
-      await new Promise(r => setTimeout(r, 800));
-      const repos = await github.getRepositories();
-      if (!repos.some(r => r.name.toLowerCase() === repoName.toLowerCase())) break;
-      attempts++;
-    }
-
     showToast('Repositório excluído com sucesso!');
     await loadRepositories();
   } catch (error) {
@@ -487,24 +454,18 @@ async function confirmDeleteRepo(repoName) {
   }
 }
 
-async function selectRepo(repoName, loadDefaultFiles = true) {
+async function selectRepo(repoName) {
   currentRepo = repoName;
   currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
 
-  mainHeader.style.display = 'none';
-  dashboardSection.style.display = 'none';
-  editorSection.style.display = 'block';
+  showSection('editor');
 
   if (monacoEditor && !isMobile) {
     setTimeout(() => monacoEditor.layout(), 100);
   }
 
   currentFolderPath = '';
-  updateUrlState(currentRepo, currentFolderPath, currentFile ? currentFile.path : null);
-
-  if (loadDefaultFiles) {
-    await loadFiles(currentFolderPath);
-  }
+  await loadFiles(currentFolderPath);
 }
 
 toggleDeleteModeBtn.addEventListener('click', () => {
@@ -526,7 +487,6 @@ async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
   fileTree.innerHTML = '';
-  updateUrlState(currentRepo, path, currentFile ? currentFile.path : null);
 
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -629,11 +589,9 @@ async function deleteFolder(folderPath, folderName) {
     return;
   }
 
-  showLoading(`Excluindo pasta ${folderName} e seus arquivos...`);
+  showLoading(`Excluindo pasta ${folderName}...`);
   try {
     await github.deleteFolder(currentUser.login, currentRepo, folderPath);
-    await github.waitForPathNotExist(currentUser.login, currentRepo, folderPath);
-
     showToast('Pasta excluída com sucesso!');
     await loadFiles(currentFolderPath);
     monitorPageDeployment();
@@ -647,16 +605,14 @@ async function deleteFileByPath(filePath, sha) {
   const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
   if (!confirmDelete) return;
 
-  showLoading('Excluindo arquivo e sincronizando...');
+  showLoading('Excluindo arquivo...');
   try {
     await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
-    await github.waitForPathNotExist(currentUser.login, currentRepo, filePath);
 
     if (currentFile && currentFile.path === filePath) {
       currentFile = null;
       originalFileContent = '';
       updateSaveButtonState(false);
-      updateUrlState(currentRepo, currentFolderPath, null);
       
       if (isMobile) {
         mobileEditor.value = '';
@@ -694,8 +650,6 @@ async function openFile(filePath) {
       sha: fileData.sha,
       name: fileData.name
     };
-
-    updateUrlState(currentRepo, currentFolderPath, currentFile.path);
 
     originalFileContent = decodedContent;
     currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
@@ -845,7 +799,7 @@ newFileBtn.addEventListener('click', async () => {
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
 
-  showLoading('Criando arquivo e aguardando confirmação...');
+  showLoading('Criando arquivo...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -855,8 +809,6 @@ newFileBtn.addEventListener('click', async () => {
       null,
       `Criado arquivo ${filename} via Web CMS`
     );
-
-    await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
@@ -875,7 +827,7 @@ newFolderBtn.addEventListener('click', async () => {
 
   const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
 
-  showLoading('Criando pasta e aguardando confirmação...');
+  showLoading('Criando pasta...');
   try {
     await github.updateFile(
       currentUser.login,
@@ -885,8 +837,6 @@ newFolderBtn.addEventListener('click', async () => {
       null,
       `Criada pasta ${folderName} via Web CMS`
     );
-
-    await github.waitForPathExist(currentUser.login, currentRepo, fullPath);
 
     showToast('Pasta criada com sucesso!');
     await loadFiles(currentFolderPath);
@@ -909,7 +859,6 @@ backToReposBtn.addEventListener('click', async () => {
   originalFileContent = '';
   currentFolderPath = '';
   updateSaveButtonState(false);
-  updateUrlState(null);
 
   if (isExpanded) {
     isExpanded = false;
