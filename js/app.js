@@ -100,66 +100,72 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO INTELIGENTE COM ATUALIZAÇÃO AUTOMÁTICA DA PÁGINA
+// GERENCIAMENTO DE ESTADO NA URL E DEEP LINKING
+function updateUrlState(repo = null, folder = '', file = null) {
+  const url = new URL(window.location.href);
+  
+  if (repo) {
+    url.searchParams.set('repo', repo);
+    if (folder) url.searchParams.set('folder', folder);
+    else url.searchParams.delete('folder');
+    
+    if (file) url.searchParams.set('file', file);
+    else url.searchParams.delete('file');
+  } else {
+    url.searchParams.delete('repo');
+    url.searchParams.delete('folder');
+    url.searchParams.delete('file');
+  }
+
+  window.history.replaceState({}, '', url.toString());
+}
+
+// MONITORAMENTO INTELIGENTE E AUTO-RELOAD
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
   try {
-    // 1. Checa se o GitHub Pages está ativado neste repositório
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      showToast('💾 Alterações salvas no repositório! <br><small>💡 Dica: O GitHub Pages não está ativado neste repositório para gerar o site público.</small>', 'info', 7000);
+      showToast('💾 Alterações salvas no repositório! <br><small>💡 Dica: O GitHub Pages não está ativado neste repositório.</small>', 'info', 7000);
       return;
     }
 
-    // 2. Se o Pages estiver ativo, monitora o deploy
     const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
     });
 
-    // Pausa técnica para propagação global da CDN
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 3000));
 
-    // Se o usuário desativou a atualização automática nas configurações:
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Atualização automática desativada nas configurações.</small>';
-      setTimeout(() => toast.remove(), 6000);
-      return;
-    }
-
-    // Se houver alterações pendentes no editor, não recarrega automaticamente
-    if (hasUnsavedChanges) {
-      toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui edições não salvas no editor. Atualize manualmente quando concluir.</small>';
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>(Atualização automática desativada nas configurações)</small>';
       setTimeout(() => toast.remove(), 10000);
       return;
     }
 
-    // Contagem regressiva antes da atualização automática
+    if (hasUnsavedChanges) {
+      toast.className = 'toast success';
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui alterações pendentes, atualize manualmente quando salvar.</small>';
+      setTimeout(() => toast.remove(), 10000);
+      return;
+    }
+
     let countdown = 3;
     toast.className = 'toast success';
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Site publicado com sucesso! <br><small>🔄 Recarregando para aplicar as alterações em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a página e restaurando sessão em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
 
-        // SALVA O ESTADO ATUAL ANTES DO RELOAD PARA VOLTAR EXATAMENTE AO MESMO LUGAR
-        sessionStorage.setItem('restore_repo', currentRepo);
-        sessionStorage.setItem('restore_folder', currentFolderPath || '');
-        if (currentFile) {
-          sessionStorage.setItem('restore_file', currentFile.path);
-        }
-
-        // Recarrega forçando descarte do cache via URL Timestamp
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('_v', Date.now());
         window.location.href = currentUrl.toString();
@@ -171,33 +177,21 @@ async function monitorPageDeployment() {
   }
 }
 
-// RESTAURAR O ESTADO SALVO APÓS O AUTO-RELOAD
-async function checkAndRestoreState() {
-  const restoreRepo = sessionStorage.getItem('restore_repo');
-  if (!restoreRepo) return;
+// ATIVAR / DESATIVAR AUTO RELOAD
+function toggleAutoReload() {
+  isAutoReloadEnabled = !isAutoReloadEnabled;
+  localStorage.setItem('auto_reload', isAutoReloadEnabled ? 'true' : 'false');
+  updateAutoReloadUI();
+  showToast(isAutoReloadEnabled ? 'Atualização automática ativada!' : 'Atualização automática desativada.', 'info', 3000);
+}
 
-  const restoreFolder = sessionStorage.getItem('restore_folder') || '';
-  const restoreFile = sessionStorage.getItem('restore_file');
-
-  // Limpa o sessionStorage para não re-executar numa atualização manual do usuário
-  sessionStorage.removeItem('restore_repo');
-  sessionStorage.removeItem('restore_folder');
-  sessionStorage.removeItem('restore_file');
-
-  try {
-    await selectRepo(restoreRepo);
-    if (restoreFolder) {
-      currentFolderPath = restoreFolder;
-      await loadFiles(currentFolderPath);
-    }
-    if (restoreFile) {
-      await openFile(restoreFile);
-    }
-    showToast('🔄 Aplicação atualizada e seu estado foi restaurado com sucesso!', 'info', 4000);
-  } catch (err) {
-    console.error('Erro ao restaurar estado:', err);
+function updateAutoReloadUI() {
+  if (popoverAutoReloadBtn) {
+    popoverAutoReloadBtn.textContent = isAutoReloadEnabled ? '🔄 Ativado' : '⏸️ Desativado';
   }
 }
+
+popoverAutoReloadBtn.addEventListener('click', toggleAutoReload);
 
 // TEMA DA PÁGINA
 function toggleTheme() {
@@ -215,25 +209,8 @@ function toggleTheme() {
   }
 }
 
-// ATIVAR/DESATIVAR AUTO RELOAD
-function toggleAutoReload() {
-  isAutoReloadEnabled = !isAutoReloadEnabled;
-  if (isAutoReloadEnabled) {
-    popoverAutoReloadBtn.textContent = '🔄 Ativado';
-    popoverAutoReloadBtn.style.opacity = '1';
-    localStorage.setItem('auto_reload', 'enabled');
-    showToast('Atualização automática ATIVADA.');
-  } else {
-    popoverAutoReloadBtn.textContent = '⏸️ Desativado';
-    popoverAutoReloadBtn.style.opacity = '0.7';
-    localStorage.setItem('auto_reload', 'disabled');
-    showToast('Atualização automática DESATIVADA.');
-  }
-}
-
 loginThemeBtn.addEventListener('click', toggleTheme);
 popoverThemeBtn.addEventListener('click', toggleTheme);
-popoverAutoReloadBtn.addEventListener('click', toggleAutoReload);
 
 function setActionButtonVisibility(button, visible) {
   if (visible) {
@@ -316,10 +293,10 @@ window.addEventListener('load', () => {
   }
 
   const savedAutoReload = localStorage.getItem('auto_reload');
-  if (savedAutoReload === 'disabled') {
-    isAutoReloadEnabled = true;
-    toggleAutoReload();
+  if (savedAutoReload !== null) {
+    isAutoReloadEnabled = savedAutoReload === 'true';
   }
+  updateAutoReloadUI();
 
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
@@ -335,11 +312,27 @@ async function autoConnect(token) {
     currentUser = await github.getUser();
     loginHeaderTools.style.display = 'none';
     headerActionsWrapper.style.display = 'flex';
-    await loadRepositories();
 
-    // TENTA RESTAURAR O ESTADO CASO SEJA UM AUTO-RELOAD
-    await checkAndRestoreState();
+    // Roteamento inteligente por URL Parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetRepo = urlParams.get('repo');
+    const targetFolder = urlParams.get('folder') || '';
+    const targetFile = urlParams.get('file');
 
+    if (targetRepo) {
+      await selectRepo(targetRepo, false);
+      if (targetFolder) {
+        currentFolderPath = targetFolder;
+        await loadFiles(targetFolderPath);
+      }
+      if (targetFile) {
+        await openFile(targetFile);
+      }
+    } else {
+      await loadRepositories();
+    }
+
+    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
     showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
@@ -417,12 +410,15 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
+  updateUrlState(null);
   location.reload();
 });
 
 async function loadRepositories() {
   showLoading('Buscando repositórios...');
   repoList.innerHTML = '';
+  updateUrlState(null);
+
   try {
     const repos = await github.getRepositories();
     mainHeader.style.display = 'flex';
@@ -491,7 +487,7 @@ async function confirmDeleteRepo(repoName) {
   }
 }
 
-async function selectRepo(repoName) {
+async function selectRepo(repoName, loadDefaultFiles = true) {
   currentRepo = repoName;
   currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
 
@@ -504,7 +500,11 @@ async function selectRepo(repoName) {
   }
 
   currentFolderPath = '';
-  await loadFiles(currentFolderPath);
+  updateUrlState(currentRepo, currentFolderPath, currentFile ? currentFile.path : null);
+
+  if (loadDefaultFiles) {
+    await loadFiles(currentFolderPath);
+  }
 }
 
 toggleDeleteModeBtn.addEventListener('click', () => {
@@ -526,6 +526,7 @@ async function loadFiles(path = '') {
   showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
   fileTree.innerHTML = '';
+  updateUrlState(currentRepo, path, currentFile ? currentFile.path : null);
 
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
@@ -655,6 +656,7 @@ async function deleteFileByPath(filePath, sha) {
       currentFile = null;
       originalFileContent = '';
       updateSaveButtonState(false);
+      updateUrlState(currentRepo, currentFolderPath, null);
       
       if (isMobile) {
         mobileEditor.value = '';
@@ -692,6 +694,8 @@ async function openFile(filePath) {
       sha: fileData.sha,
       name: fileData.name
     };
+
+    updateUrlState(currentRepo, currentFolderPath, currentFile.path);
 
     originalFileContent = decodedContent;
     currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
@@ -905,6 +909,7 @@ backToReposBtn.addEventListener('click', async () => {
   originalFileContent = '';
   currentFolderPath = '';
   updateSaveButtonState(false);
+  updateUrlState(null);
 
   if (isExpanded) {
     isExpanded = false;
