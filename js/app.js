@@ -12,9 +12,11 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA DE REQUISIÇÕES (QUEUE)
+// FILA ASSÍNCRONA E CONTROLE DE RECARREGAMENTO
 const saveQueue = [];
 let isProcessingQueue = false;
+let currentDeploymentController = null; // Guarda e cancela monitoramentos anteriores
+let reloadCountdownInterval = null;      // Guarda o timer de contagem regressiva
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -100,26 +102,58 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO LIMPO NA TELA INICIAL
+// CANCELA MONITORAMENTOS E CONTAGENS REGRESSIVAS PENDENTES
+function cancelPendingReloads() {
+  if (reloadCountdownInterval) {
+    clearInterval(reloadCountdownInterval);
+    reloadCountdownInterval = null;
+  }
+  if (currentDeploymentController) {
+    currentDeploymentController.cancelled = true;
+    currentDeploymentController = null;
+  }
+}
+
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES COM SUPORTE A MÚLTIPLOS SALVAMENTOS
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
+
+  // Cancela contagens anteriores se um novo lote foi salvo
+  cancelPendingReloads();
+
+  const myController = { cancelled: false };
+  currentDeploymentController = myController;
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
+    if (myController.cancelled) return;
+
     if (!isPagesEnabled) {
-      showToast('💾 Alterações salvas no repositório!', 'info', 5000);
+      showToast('💾 Todas as alterações foram salvas!', 'info', 5000);
       return;
     }
 
-    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
+    const toast = showToast('🚀 Alterações enviadas. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      toast.innerHTML = statusMsg;
+      if (!myController.cancelled) {
+        toast.innerHTML = statusMsg;
+      }
     });
+
+    if (myController.cancelled) {
+      toast.remove();
+      return;
+    }
 
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 3000));
+
+    if (myController.cancelled) {
+      toast.remove();
+      return;
+    }
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
@@ -131,20 +165,30 @@ async function monitorPageDeployment() {
     let countdown = 3;
     toast.className = 'toast success';
 
-    const countdownInterval = setInterval(() => {
+    reloadCountdownInterval = setInterval(() => {
+      // Se novos arquivos entraram na fila durante a contagem, interrompe a recarga
+      if (saveQueue.length > 0 || isProcessingQueue || myController.cancelled) {
+        clearInterval(reloadCountdownInterval);
+        reloadCountdownInterval = null;
+        toast.remove();
+        return;
+      }
+
       if (countdown > 0) {
         toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
-        clearInterval(countdownInterval);
+        clearInterval(reloadCountdownInterval);
+        reloadCountdownInterval = null;
         toast.innerHTML = '🔄 Recarregando agora...';
-        // Recarregamento limpo para a página principal (raiz)
         window.location.href = window.location.pathname;
       }
     }, 1000);
 
   } catch (error) {
-    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
+    if (!myController.cancelled) {
+      showToast('💾 Alterações gravadas no repositório com sucesso!', 'success', 5000);
+    }
   }
 }
 
@@ -662,8 +706,11 @@ async function openFile(filePath) {
   }
 }
 
-// FILA ASSÍNCRONA DE SALVAMENTO DE ARQUIVOS
+// FILA ASSÍNCRONA INTELIGENTE
 function queueSaveRequest(fileObj, content) {
+  // Cancela recargas automáticas agendadas assim que um novo salvamento entra na fila
+  cancelPendingReloads();
+
   saveQueue.push({ file: fileObj, content: content });
   
   if (saveQueue.length > 1) {
@@ -711,10 +758,12 @@ async function processSaveQueue() {
     isProcessingQueue = false;
 
     if (saveQueue.length > 0) {
+      // Se ainda há arquivos na fila, continua processando o próximo
       processSaveQueue();
     } else {
+      // SÓ DEPOIS QUE O ÚLTIMO ARQUIVO DA FILA FOR SALVO:
       await loadFiles(currentFolderPath);
-      monitorPageDeployment();
+      monitorPageDeployment(); // Inicia verificação do deploy e autoreload para todo o lote
     }
   }
 }
