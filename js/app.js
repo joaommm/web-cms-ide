@@ -100,9 +100,15 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO COM BYPASS DE CACHE
+// MONITORAMENTO DO DEPLOY COM TRATAMENTO DE MÚLTIPLAS REQUISIÇÕES
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
+
+  // Se ainda houver itens na fila aguardando processamento, interrompe o reload automático deste ciclo
+  if (saveQueue.length > 0) {
+    showToast('⌛ Alteração salva! Aguardando o restante das alterações na fila para atualizar...', 'info', 4000);
+    return;
+  }
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
@@ -112,15 +118,31 @@ async function monitorPageDeployment() {
       return;
     }
 
-    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
+    const toast = showToast('🚀 Alterações enviadas. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
+      // Checa se novos arquivos foram adicionados à fila durante a verificação
+      if (saveQueue.length > 0) {
+        toast.className = 'toast info';
+        toast.innerHTML = '⌛ Novas alterações detectadas! Aguardando a fila terminar...';
+        return;
+      }
       toast.innerHTML = statusMsg;
     });
 
+    // Segunda checagem de segurança antes de pausar a sincronização
+    if (saveQueue.length > 0) {
+      toast.remove();
+      return;
+    }
+
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
-    // Espera 5 segundos para garantir que o CDN propagou totalmente a alteração
     await new Promise(r => setTimeout(r, 5000));
+
+    if (saveQueue.length > 0) {
+      toast.remove();
+      return;
+    }
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
@@ -133,6 +155,13 @@ async function monitorPageDeployment() {
     toast.className = 'toast success';
 
     const countdownInterval = setInterval(() => {
+      // Cancela o countdown se o usuário salvou outro arquivo enquanto ele contava
+      if (saveQueue.length > 0) {
+        clearInterval(countdownInterval);
+        toast.remove();
+        return;
+      }
+
       if (countdown > 0) {
         toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
         countdown--;
@@ -140,7 +169,7 @@ async function monitorPageDeployment() {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
         
-        // FORÇAR BYPASS DE CACHE COM TIMESTAMP NA URL
+        // BYPASS DE CACHE COM TIMESTAMP
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
@@ -714,11 +743,8 @@ async function processSaveQueue() {
     isProcessingQueue = false;
 
     if (saveQueue.length > 0) {
-      // Notifica o usuário de que ainda há envios pendentes antes do reload automático
-      showToast(`⏳ Aguardando envio de mais ${saveQueue.length} arquivo(s) para sincronizar o site...`, 'info', 3000);
       processSaveQueue();
     } else {
-      // Dispara o monitoramento e recarregamento apenas quando a fila estiver totalmente zerada
       await loadFiles(currentFolderPath);
       monitorPageDeployment();
     }
