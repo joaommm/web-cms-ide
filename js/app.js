@@ -100,7 +100,7 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO FORÇADO (SEM CACHE)
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO COM BYPASS DE CACHE
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
@@ -119,7 +119,8 @@ async function monitorPageDeployment() {
     });
 
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
-    await new Promise(r => setTimeout(r, 3000));
+    // Espera 5 segundos para garantir que o CDN propagou totalmente a alteração
+    await new Promise(r => setTimeout(r, 5000));
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
@@ -139,9 +140,9 @@ async function monitorPageDeployment() {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
         
-        // Força a limpeza de cache adicionando query parameter único
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.location.href = cleanUrl + '?nocache=' + Date.now();
+        // FORÇAR BYPASS DE CACHE COM TIMESTAMP NA URL
+        const cleanPath = window.location.pathname;
+        window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
     }, 1000);
 
@@ -259,11 +260,6 @@ mobileEditor.addEventListener('input', () => {
 });
 
 window.addEventListener('load', () => {
-  // Limpa os parâmetros de nocache da barra de endereços para manter a URL limpa
-  if (window.location.search.includes('nocache=')) {
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
-
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') {
     isDarkMode = false;
@@ -325,7 +321,7 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-// POPOVERS DE CONFIGURAÇÕES E LOGOUT
+// POPOVERS
 settingsToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   logoutPopover.classList.remove('popover-visible');
@@ -370,7 +366,7 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
-  location.reload();
+  window.location.href = window.location.pathname;
 });
 
 async function loadRepositories() {
