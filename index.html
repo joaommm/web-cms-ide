@@ -1,167 +1,972 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web CMS / IDE</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
-</head>
-<body>
-  <!-- Overlay Global de Carregamento -->
-  <div id="loading-overlay" style="display: none;">
-    <div class="spinner"></div>
-    <p id="loading-message">Carregando...</p>
-  </div>
+let github = null;
+let currentUser = null;
+let currentRepo = null;
+let currentFile = null;
+let originalFileContent = '';
+let hasUnsavedChanges = false;
+let currentFolderPath = '';
+let monacoEditor = null;
+let isExpanded = false;
+let isDeleteMode = false;
+let isDarkMode = false;
+let isAutoReloadEnabled = true;
+const isMobile = window.innerWidth <= 768;
 
-  <!-- Contêiner de Notificações Toast -->
-  <div id="toast-container"></div>
+// FILA ASSÍNCRONA E CONTROLE DE DEPLOY
+const saveQueue = [];
+let isProcessingQueue = false;
+let activeDeploySession = 0;
+let activeFilesCount = 0;
 
-  <!-- Modal de Preview ao Vivo -->
-  <div id="preview-modal" style="display: none;">
-    <div class="preview-content">
-      <div class="preview-header">
-        <h3>Visualização ao Vivo</h3>
-        <button id="close-preview-btn" class="danger-btn"><span class="btn-icon">✖</span> <span class="btn-label">Fechar</span></button>
-      </div>
-      <iframe id="preview-frame"></iframe>
-    </div>
-  </div>
+const tokenInput = document.getElementById('token-input');
+const connectBtn = document.getElementById('connect-btn');
 
-  <div id="app">
-    <!-- Cabeçalho Principal Global -->
-    <header class="app-header" id="main-header">
-      <h1>Web CMS / IDE</h1>
+const mainHeader = document.getElementById('main-header');
+const loginSection = document.getElementById('login-section');
+const dashboardSection = document.getElementById('dashboard-section');
+const editorSection = document.getElementById('editor-section');
 
-      <!-- Ações da Tela Inicial (Apenas Ajuda e Tema no canto superior direito) -->
-      <div id="login-header-tools" class="header-tools-group">
-        <button id="login-theme-btn" class="icon-btn" title="Alternar Tema Claro/Escuro">🌙</button>
-        <a href="help.html" target="_blank" id="login-help-btn" class="icon-btn help-btn-link" title="Central de Ajuda">❓</a>
-      </div>
+const repoList = document.getElementById('repo-list');
+const fileTree = document.getElementById('file-tree');
+const currentRepoTitle = document.getElementById('current-repo-title');
+const currentFileTitle = document.getElementById('current-file-title');
 
-      <!-- Ações do Cabeçalho Superior -->
-      <div id="header-actions-wrapper" style="display: none;" class="header-tools-group">
-        <!-- Botão de Configurações + Menu Flutuante -->
-        <div id="settings-wrapper">
-          <button id="settings-toggle-btn" class="icon-btn" title="Configurações">⚙️</button>
+const saveFileBtn = document.getElementById('save-file-btn');
+const deleteFileBtn = document.getElementById('delete-file-btn');
+const newFileBtn = document.getElementById('new-file-btn');
+const newFolderBtn = document.getElementById('new-folder-btn');
+const toggleDeleteModeBtn = document.getElementById('toggle-delete-mode-btn');
+const newRepoBtn = document.getElementById('new-repo-btn');
 
-          <!-- Popover Flutuante de Configurações -->
-          <div id="settings-popover" class="popover-hidden">
-            <div class="popover-menu-item" id="popover-theme-item">
-              <span class="menu-label">Tema:</span>
-              <button id="popover-theme-btn" class="secondary-btn flex-btn">🌙 Escuro</button>
-            </div>
-            <div class="popover-menu-item">
-              <span class="menu-label">Auto Reload:</span>
-              <button id="popover-autoreload-btn" class="secondary-btn flex-btn">🔄 Ativado</button>
-            </div>
-            <div class="popover-menu-item">
-              <span class="menu-label">Idioma:</span>
-              <select id="popover-lang-select" class="menu-select">
-                <option value="pt-BR">Português (PT-BR)</option>
-                <option value="en-US">English (EN)</option>
-              </select>
-            </div>
-            <div class="popover-menu-item">
-              <a href="help.html" target="_blank" class="help-link-btn">❓ Central de Ajuda</a>
-            </div>
-          </div>
+const loginHeaderTools = document.getElementById('login-header-tools');
+const headerActionsWrapper = document.getElementById('header-actions-wrapper');
+
+// CONFIGURAÇÃO E LOGOUT
+const settingsWrapper = document.getElementById('settings-wrapper');
+const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+const settingsPopover = document.getElementById('settings-popover');
+const popoverThemeBtn = document.getElementById('popover-theme-btn');
+const popoverAutoReloadBtn = document.getElementById('popover-autoreload-btn');
+
+const logoutWrapper = document.getElementById('logout-wrapper');
+const logoutPopover = document.getElementById('logout-popover');
+const powerToggleBtn = document.getElementById('power-toggle-btn');
+const logoutBtn = document.getElementById('logout-btn');
+
+const loginThemeBtn = document.getElementById('login-theme-btn');
+
+const backToReposBtn = document.getElementById('back-to-repos-btn');
+const currentPathDisplay = document.getElementById('current-path-display');
+const mobileEditor = document.getElementById('mobile-editor');
+
+const previewBtn = document.getElementById('preview-btn');
+const expandBtn = document.getElementById('expand-btn');
+const expandIcon = document.getElementById('expand-icon');
+const expandText = document.getElementById('expand-text');
+const fileExplorer = document.getElementById('file-explorer');
+const codeEditorArea = document.getElementById('code-editor-area');
+
+const previewModal = document.getElementById('preview-modal');
+const closePreviewBtn = document.getElementById('close-preview-btn');
+const previewFrame = document.getElementById('preview-frame');
+
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingMessage = document.getElementById('loading-message');
+const toastContainer = document.getElementById('toast-container');
+
+// SVG ÍCONES PARA RETRAIR E EXPANDIR
+const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M3 21l7-7"/></svg>`;
+
+function showLoading(message = 'Carregando...') {
+  loadingMessage.textContent = message;
+  loadingOverlay.style.display = 'flex';
+}
+
+function hideLoading() {
+  loadingOverlay.style.display = 'none';
+}
+
+function showToast(message, type = 'success', duration = 3500) {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = message;
+  toastContainer.appendChild(toast);
+
+  if (duration > 0) {
+    setTimeout(() => {
+      if (toast.parentNode) toast.remove();
+    }, duration);
+  }
+
+  return toast;
+}
+
+// SALVA E LIMPA O ESTADO DO DEPLOY NO NAVEGADOR
+function saveDeployState(repo, fileName, status) {
+  const state = { repo, fileName, status, timestamp: Date.now() };
+  localStorage.setItem('active_github_deploy', JSON.stringify(state));
+}
+
+function clearDeployState() {
+  localStorage.removeItem('active_github_deploy');
+}
+
+// CHECA SE HÁ DEPLOY ATIVO APÓS ATUALIZAR A PÁGINA
+async function checkOngoingDeployOnLoad() {
+  const savedStateStr = localStorage.getItem('active_github_deploy');
+  if (!savedStateStr || !github || !currentUser || !currentRepo) return;
+
+  try {
+    const savedState = JSON.parse(savedStateStr);
+    if (savedState.repo !== currentRepo) return;
+
+    // Se a sessão for de menos de 10 minutos atrás, reativa o monitoramento
+    if (Date.now() - savedState.timestamp < 600000) {
+      const toastRef = showToast(`🔍 Detectado processo anterior em <b>${savedState.fileName}</b>. Verificando status no GitHub...`, 'info', 0);
+      activeFilesCount = 1;
+      activeDeploySession++;
+      
+      monitorPageDeploymentForFile(savedState.fileName, activeDeploySession, toastRef);
+    } else {
+      clearDeployState();
+    }
+  } catch (e) {
+    clearDeployState();
+  }
+}
+
+// MONITORAMENTO INDIVIDUAL DE CADA ARQUIVO SALVO
+async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
+  if (!github || !currentUser || !currentRepo) return;
+
+  saveDeployState(currentRepo, fileName, 'building');
+
+  try {
+    const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
+
+    if (!isPagesEnabled) {
+      if (toastRef) {
+        toastRef.className = 'toast success';
+        toastRef.innerHTML = `💾 Alteração em <b>${fileName}</b> salva no repositório!`;
+        setTimeout(() => toastRef.remove(), 4000);
+      }
+      activeFilesCount = Math.max(0, activeFilesCount - 1);
+      clearDeployState();
+      return;
+    }
+
+    if (toastRef) {
+      toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando fila de publicação do GitHub Pages...`;
+    }
+
+    // Acompanha o Build na API do GitHub
+    await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+        if (toastRef) {
+          const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'outro arquivo';
+          toastRef.innerHTML = `⏸️ <b>${fileName}</b> aguardando conclusão de <b>${nextFile}</b>...`;
+        }
+        return;
+      }
+      if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
+    });
+
+    // PÓS-BUILD: AGUARDA PROPAGAÇÃO REAL NO CDN (Especialmente para Horários de Pico)
+    if (toastRef) {
+      toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores do GitHub (Horário de Pico)...`;
+    }
+
+    // Loop de verificação de CDN com margem de segurança extra (12 segundos)
+    for (let i = 12; i > 0; i--) {
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
+      if (toastRef) {
+        toastRef.innerHTML = `⏳ <b>${fileName}</b>: Sincronizando com os servidores globais (${i}s)...`;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    clearDeployState();
+
+    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER DESATIVADA
+    if (!isAutoReloadEnabled) {
+      if (toastRef) {
+        toastRef.className = 'toast success';
+        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado no servidor! As alterações já estão disponíveis.`;
+        setTimeout(() => toastRef.remove(), 7000);
+      }
+      activeFilesCount = Math.max(0, activeFilesCount - 1);
+      return;
+    }
+
+    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER ATIVADA
+    while (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
+      if (toastRef) {
+        const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'novo processo';
+        toastRef.innerHTML = `⏸️ <b>${fileName}</b> publicado. Pausado aguardando término de <b>${nextFile}</b> para reiniciar...`;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO
+    let countdown = 3;
+    const isMultipleFiles = activeFilesCount > 1;
+
+    const countdownInterval = setInterval(() => {
+      if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
+        clearInterval(countdownInterval);
+        return;
+      }
+
+      if (countdown > 0) {
+        if (toastRef) {
+          toastRef.className = 'toast success';
+          if (isMultipleFiles) {
+            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          } else {
+            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          }
+        }
+        countdown--;
+      } else {
+        clearInterval(countdownInterval);
+        if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
+        
+        activeFilesCount = 0;
+        const cleanPath = window.location.pathname;
+        window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
+      }
+    }, 1000);
+
+  } catch (error) {
+    clearDeployState();
+    if (toastRef) {
+      toastRef.className = 'toast success';
+      toastRef.innerHTML = `💾 <b>${fileName}</b> salvo no repositório!`;
+      setTimeout(() => toastRef.remove(), 4000);
+    }
+    activeFilesCount = Math.max(0, activeFilesCount - 1);
+  }
+}
+
+// TOGGLE DO AUTO-RELOAD NAS CONFIGURAÇÕES
+function toggleAutoReload() {
+  isAutoReloadEnabled = !isAutoReloadEnabled;
+  localStorage.setItem('auto_reload', isAutoReloadEnabled ? 'true' : 'false');
+  updateAutoReloadUI();
+  showToast(isAutoReloadEnabled ? 'Atualização automática ativada!' : 'Atualização automática desativada.', 'info', 3000);
+}
+
+function updateAutoReloadUI() {
+  if (popoverAutoReloadBtn) {
+    popoverAutoReloadBtn.textContent = isAutoReloadEnabled ? '🔄 Ativado' : '⏸️ Desativado';
+  }
+}
+
+popoverAutoReloadBtn.addEventListener('click', toggleAutoReload);
+
+// TEMA DA PÁGINA
+function toggleTheme() {
+  isDarkMode = !isDarkMode;
+  if (isDarkMode) {
+    document.body.classList.add('dark-mode');
+    loginThemeBtn.textContent = '☀️';
+    popoverThemeBtn.textContent = '☀️ Claro';
+    localStorage.setItem('theme', 'dark');
+  } else {
+    document.body.classList.remove('dark-mode');
+    loginThemeBtn.textContent = '🌙';
+    popoverThemeBtn.textContent = '🌙 Escuro';
+    localStorage.setItem('theme', 'light');
+  }
+}
+
+loginThemeBtn.addEventListener('click', toggleTheme);
+popoverThemeBtn.addEventListener('click', toggleTheme);
+
+function setActionButtonVisibility(button, visible) {
+  if (visible) {
+    button.classList.remove('action-hidden');
+    button.classList.add('action-visible');
+  } else {
+    button.classList.remove('action-visible');
+    button.classList.add('action-hidden');
+  }
+}
+
+function updateSaveButtonState(modified) {
+  hasUnsavedChanges = modified;
+  const labelSpan = saveFileBtn.querySelector('.btn-label');
+  
+  if (modified) {
+    saveFileBtn.classList.remove('save-disabled');
+    saveFileBtn.classList.add('save-active');
+    saveFileBtn.disabled = false;
+    if (labelSpan) labelSpan.textContent = '* Salvar';
+  } else {
+    saveFileBtn.classList.remove('save-active');
+    saveFileBtn.classList.add('save-disabled');
+    saveFileBtn.disabled = true;
+    if (labelSpan) labelSpan.textContent = 'Salvar';
+  }
+}
+
+function checkUnsavedChanges() {
+  if (hasUnsavedChanges) {
+    return confirm('Você possui alterações não salvas no arquivo atual. Deseja descartá-las?');
+  }
+  return true;
+}
+
+function getLanguageFromFilename(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'html': case 'htm': return 'html';
+    case 'css': return 'css';
+    case 'js': return 'javascript';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    default: return 'plaintext';
+  }
+}
+
+// INICIALIZAÇÃO DO EDITOR MONACO
+if (!isMobile) {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: '// Selecione um arquivo para começar a editar...',
+      language: 'plaintext',
+      theme: 'vs-dark',
+      automaticLayout: true
+    });
+
+    monacoEditor.onDidChangeModelContent(() => {
+      if (currentFile) {
+        const currentContent = monacoEditor.getValue();
+        updateSaveButtonState(currentContent !== originalFileContent);
+      }
+    });
+  });
+}
+
+mobileEditor.addEventListener('input', () => {
+  if (currentFile) {
+    const currentContent = mobileEditor.value;
+    updateSaveButtonState(currentContent !== originalFileContent);
+  }
+});
+
+window.addEventListener('load', () => {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    isDarkMode = false;
+    toggleTheme();
+  }
+
+  const savedAutoReload = localStorage.getItem('auto_reload');
+  if (savedAutoReload !== null) {
+    isAutoReloadEnabled = savedAutoReload === 'true';
+  }
+  updateAutoReloadUI();
+
+  const savedToken = localStorage.getItem('gh_token');
+  if (savedToken) {
+    tokenInput.value = savedToken;
+    autoConnect(savedToken);
+  }
+});
+
+async function autoConnect(token) {
+  showLoading('Reconectando ao GitHub...');
+  try {
+    github = new GitHubAPI(token);
+    currentUser = await github.getUser();
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+
+    await loadRepositories();
+    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
+  } catch (error) {
+    showToast('Sessão expirada ou token inválido.', 'error');
+    localStorage.removeItem('gh_token');
+  } finally {
+    hideLoading();
+  }
+}
+
+connectBtn.addEventListener('click', async () => {
+  const token = tokenInput.value.trim();
+  if (!token) {
+    showToast('Por favor, informe o token.', 'error');
+    return;
+  }
+
+  showLoading('Autenticando...');
+  try {
+    github = new GitHubAPI(token);
+    currentUser = await github.getUser();
+
+    localStorage.setItem('gh_token', token);
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+    await loadRepositories();
+    showToast('Conectado com sucesso!');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+// POPOVERS
+settingsToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  logoutPopover.classList.remove('popover-visible');
+  logoutPopover.classList.add('popover-hidden');
+
+  const isVisible = settingsPopover.classList.contains('popover-visible');
+  if (isVisible) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  } else {
+    settingsPopover.classList.remove('popover-hidden');
+    settingsPopover.classList.add('popover-visible');
+  }
+});
+
+powerToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  settingsPopover.classList.remove('popover-visible');
+  settingsPopover.classList.add('popover-hidden');
+
+  const isVisible = logoutPopover.classList.contains('popover-visible');
+  if (isVisible) {
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
+  } else {
+    logoutPopover.classList.remove('popover-hidden');
+    logoutPopover.classList.add('popover-visible');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!settingsWrapper.contains(e.target)) {
+    settingsPopover.classList.remove('popover-visible');
+    settingsPopover.classList.add('popover-hidden');
+  }
+  if (!logoutWrapper.contains(e.target)) {
+    logoutPopover.classList.remove('popover-visible');
+    logoutPopover.classList.add('popover-hidden');
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  if (!checkUnsavedChanges()) return;
+  localStorage.removeItem('gh_token');
+  clearDeployState();
+  window.location.href = window.location.pathname;
+});
+
+async function loadRepositories() {
+  showLoading('Buscando repositórios...');
+  repoList.innerHTML = '';
+
+  try {
+    const repos = await github.getRepositories();
+    mainHeader.style.display = 'flex';
+    loginSection.style.display = 'none';
+    editorSection.style.display = 'none';
+    dashboardSection.style.display = 'block';
+
+    repoList.innerHTML = '';
+    repos.forEach(repo => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <a class="repo-link" onclick="selectRepo('${repo.name}')">${repo.name}</a>
+        <div>
+          <button class="danger-btn" style="padding: 4px 8px; font-size: 12px;" onclick="confirmDeleteRepo('${repo.name}')" title="Excluir Repositório">✖</button>
         </div>
+      `;
+      repoList.appendChild(li);
+    });
+  } catch (error) {
+    showToast('Erro ao listar repositórios: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
 
-        <!-- Botão de Desligar Vermelho + Menu Flutuante -->
-        <div id="logout-wrapper">
-          <button id="power-toggle-btn" class="power-btn" title="Desconectar / Trocar Token">
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-              <line x1="12" y1="2" x2="12" y2="12"></line>
-            </svg>
-          </button>
+newRepoBtn.addEventListener('click', async () => {
+  const repoName = prompt('Digite o nome do novo repositório:');
+  if (!repoName) return;
 
-          <!-- Popover Flutuante de Confirmação -->
-          <div id="logout-popover" class="popover-hidden">
-            <button id="logout-btn" class="danger-btn">Desconectar / Trocar Token</button>
-          </div>
+  showLoading('Criando repositório...');
+  try {
+    await github.createRepository(repoName, 'Criado via Web CMS');
+    showToast('Repositório criado com sucesso!');
+    await loadRepositories();
+  } catch (error) {
+    showToast('Erro ao criar repositório: ' + error.message, 'error');
+    hideLoading();
+  }
+});
+
+async function confirmDeleteRepo(repoName) {
+  const confirmText = prompt(`Para excluir permanentemente, digite o nome do repositório (${repoName}):`);
+  if (confirmText !== repoName) {
+    showToast('Nome incorreto. Operação cancelada.', 'error');
+    return;
+  }
+
+  showLoading('Excluindo repositório...');
+  try {
+    await github.deleteRepository(currentUser.login, repoName);
+    showToast('Repositório excluído com sucesso!');
+    await loadRepositories();
+  } catch (error) {
+    showToast('Erro ao excluir repositório: ' + error.message, 'error');
+    hideLoading();
+  }
+}
+
+async function selectRepo(repoName) {
+  currentRepo = repoName;
+  currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
+
+  mainHeader.style.display = 'none';
+  dashboardSection.style.display = 'none';
+  editorSection.style.display = 'block';
+
+  if (monacoEditor && !isMobile) {
+    setTimeout(() => monacoEditor.layout(), 100);
+  }
+
+  currentFolderPath = '';
+  await loadFiles(currentFolderPath);
+  
+  // Checa se existia algum processo ativo do repositório ao carregar
+  checkOngoingDeployOnLoad();
+}
+
+toggleDeleteModeBtn.addEventListener('click', () => {
+  isDeleteMode = !isDeleteMode;
+  toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
+  showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
+  
+  const actionContainers = document.querySelectorAll('.tree-item-actions');
+  actionContainers.forEach(container => {
+    if (isDeleteMode) {
+      container.classList.add('visible-action');
+    } else {
+      container.classList.remove('visible-action');
+    }
+  });
+});
+
+async function loadFiles(path = '') {
+  showLoading('Carregando arquivos...');
+  currentPathDisplay.textContent = path ? `/${path}` : '/';
+  fileTree.innerHTML = '';
+
+  try {
+    let contents = await github.getContents(currentUser.login, currentRepo, path);
+    
+    if (!Array.isArray(contents)) {
+      contents = [];
+    }
+
+    fileTree.innerHTML = '';
+
+    contents.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      }
+      return a.type === 'dir' ? -1 : 1;
+    });
+
+    if (path !== '') {
+      const backLi = document.createElement('li');
+      backLi.innerHTML = '<span class="tree-item-title is-folder">⬅️ .. (Voltar pasta)</span>';
+      backLi.style.cursor = 'pointer';
+      backLi.addEventListener('click', async () => {
+        if (!checkUnsavedChanges()) return;
+        const pathParts = currentFolderPath.split('/');
+        pathParts.pop();
+        currentFolderPath = pathParts.join('/');
+        await loadFiles(currentFolderPath);
+      });
+      fileTree.appendChild(backLi);
+    }
+
+    for (const item of contents) {
+      const li = document.createElement('li');
+      let icon = item.type === 'dir' ? '📁' : '📄';
+      const textClass = item.type === 'dir' ? 'is-folder' : 'is-file';
+
+      li.innerHTML = `
+        <span class="tree-item-title ${textClass}"><span class="item-icon">${icon}</span> <span class="item-name">${item.name}</span></span>
+        <div class="tree-item-actions ${isDeleteMode ? 'visible-action' : ''}">
+          <button class="danger-btn" title="Excluir">✖</button>
         </div>
-      </div>
-    </header>
+      `;
 
-    <!-- Tela de Autenticação -->
-    <section id="login-section">
-      <h2>Autenticação</h2>
-      <p style="margin-top: 10px;">Insira seu Personal Access Token do GitHub para conectar:</p>
-      <input type="password" id="token-input" placeholder="ghp_..." />
-      <button id="connect-btn">Conectar</button>
-      <p id="auth-status"></p>
-    </section>
+      const titleSpan = li.querySelector('.tree-item-title');
+      const deleteBtn = li.querySelector('button');
 
-    <!-- Painel de Repositórios -->
-    <section id="dashboard-section" style="display: none;">
-      <div class="dashboard-header">
-        <h2>Meus Repositórios</h2>
-        <button id="new-repo-btn">Novo +</button>
-      </div>
+      if (item.type === 'dir') {
+        github.getContents(currentUser.login, currentRepo, item.path).then(subContents => {
+          const iconSpan = li.querySelector('.item-icon');
+          if (iconSpan) {
+            const realFiles = Array.isArray(subContents) ? subContents.filter(f => f.name !== '.gitkeep') : [];
+            iconSpan.textContent = realFiles.length > 0 ? '📂' : '📁';
+          }
+        }).catch(() => {});
 
-      <ul id="repo-list"></ul>
-    </section>
+        titleSpan.addEventListener('click', async () => {
+          if (!checkUnsavedChanges()) return;
+          currentFolderPath = item.path;
+          await loadFiles(currentFolderPath);
+        });
 
-    <!-- Painel do Editor de Arquivos -->
-    <section id="editor-section" style="display: none;">
-      <div class="editor-top-bar">
-        <h2 id="current-repo-title"></h2>
-        <button id="back-to-repos-btn" title="Voltar aos Repositórios">
-          <span class="btn-icon-back">⬅️</span> <span class="btn-text">Voltar aos Repositórios</span>
-        </button>
-      </div>
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFolder(item.path, item.name);
+        });
 
-      <div class="workspace">
-        <!-- Navegador de Arquivos -->
-        <div class="file-explorer" id="file-explorer">
-          <div class="explorer-header">
-            <h3>Arquivos</h3>
-            <div class="explorer-actions">
-              <button id="toggle-delete-mode-btn" class="danger-btn explorer-btn" title="Modo de Exclusão">✖</button>
-              <button id="new-folder-btn" class="explorer-btn" title="Nova Pasta">📁</button>
-              <button id="new-file-btn" class="explorer-btn" title="Novo Arquivo">📄</button>
-            </div>
-          </div>
-          <p id="current-path-display" class="path-display">/</p>
-          <ul id="file-tree"></ul>
-        </div>
+      } else if (item.type === 'file') {
+        titleSpan.addEventListener('click', () => {
+          if (!checkUnsavedChanges()) return;
+          openFile(item.path);
+        });
 
-        <!-- Área do Editor -->
-        <div class="code-editor-area" id="code-editor-area">
-          <div class="editor-header" id="editor-header-bar">
-            <h3 id="current-file-title">Nenhum arquivo selecionado</h3>
-            <div class="editor-actions">
-              <button id="preview-btn" class="secondary-btn action-hidden" title="Preview">
-                <span class="btn-icon">👁️</span> <span class="btn-label">Preview</span>
-              </button>
-              <button id="expand-btn" class="secondary-btn action-hidden" title="Expandir">
-                <span id="expand-icon" class="icon-svg">
-                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                </span> 
-                <span id="expand-text" class="btn-label">Expandir</span>
-              </button>
-              <button id="delete-file-btn" class="danger-btn action-hidden" title="Excluir">
-                <span class="btn-icon">✖</span> <span class="btn-label">Excluir</span>
-              </button>
-              <button id="save-file-btn" class="save-disabled action-hidden" disabled title="Salvar">
-                <span class="btn-icon">💾+</span> <span class="btn-label">Salvar</span>
-              </button>
-            </div>
-          </div>
-          
-          <div id="monaco-container"></div>
-          <textarea id="mobile-editor" placeholder="Selecione um arquivo..." style="display: none;"></textarea>
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteFileByPath(item.path, item.sha);
+        });
+      }
 
-          <p id="editor-status"></p>
-        </div>
-      </div>
-    </section>
-  </div>
+      fileTree.appendChild(li);
+    }
+  } catch (error) {
+    if (path !== '') {
+      const pathParts = path.split('/');
+      pathParts.pop();
+      currentFolderPath = pathParts.join('/');
+      await loadFiles(currentFolderPath);
+    } else {
+      fileTree.innerHTML = '<li>Nenhum arquivo encontrado.</li>';
+      hideLoading();
+    }
+  } finally {
+    hideLoading();
+  }
+}
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
-  <script src="js/github.js"></script>
-  <script src="js/app.js"></script>
-</body>
-</html>
+async function deleteFolder(folderPath, folderName) {
+  const confirmText = prompt(`Tem certeza que deseja excluir a pasta "${folderName}" e TODO o seu conteúdo? Digite "${folderName}" para confirmar:`);
+  if (confirmText !== folderName) {
+    showToast('Confirmação incorreta. Operação cancelada.', 'error');
+    return;
+  }
+
+  showLoading(`Excluindo pasta ${folderName}...`);
+  try {
+    await github.deleteFolder(currentUser.login, currentRepo, folderPath);
+    showToast('Pasta excluída com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao excluir pasta: ' + error.message, 'error');
+    hideLoading();
+  }
+}
+
+async function deleteFileByPath(filePath, sha) {
+  const confirmDelete = confirm(`Tem certeza que deseja excluir o arquivo "${filePath}"?`);
+  if (!confirmDelete) return;
+
+  showLoading('Excluindo arquivo...');
+  try {
+    await github.deleteFile(currentUser.login, currentRepo, filePath, sha);
+
+    if (currentFile && currentFile.path === filePath) {
+      currentFile = null;
+      originalFileContent = '';
+      updateSaveButtonState(false);
+      
+      if (isMobile) {
+        mobileEditor.value = '';
+        mobileEditor.style.display = 'none';
+      } else {
+        monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+      }
+
+      setActionButtonVisibility(saveFileBtn, false);
+      setActionButtonVisibility(deleteFileBtn, false);
+      setActionButtonVisibility(expandBtn, false);
+      setActionButtonVisibility(previewBtn, false);
+      currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
+    }
+
+    showToast('Arquivo excluído com sucesso!');
+    await loadFiles(currentFolderPath);
+
+  } catch (error) {
+    showToast('Erro ao excluir arquivo: ' + error.message, 'error');
+    hideLoading();
+  }
+}
+
+async function openFile(filePath) {
+  showLoading('Abrindo arquivo...');
+
+  try {
+    const fileData = await github.getFile(currentUser.login, currentRepo, filePath);
+    const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
+
+    currentFile = {
+      path: fileData.path,
+      sha: fileData.sha,
+      name: fileData.name
+    };
+
+    originalFileContent = decodedContent;
+    currentFileTitle.innerHTML = `<span class="file-title-label">Arquivo:</span> <span class="file-title-normal">${fileData.name}</span>`;
+
+    if (isMobile) {
+      mobileEditor.value = decodedContent;
+      mobileEditor.style.display = 'block';
+    } else if (monacoEditor) {
+      monacoEditor.setValue(decodedContent);
+      const language = getLanguageFromFilename(fileData.name);
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+      setTimeout(() => monacoEditor.layout(), 50);
+    }
+
+    updateSaveButtonState(false);
+
+    setActionButtonVisibility(saveFileBtn, true);
+    setActionButtonVisibility(deleteFileBtn, true);
+    setActionButtonVisibility(expandBtn, true);
+    setActionButtonVisibility(previewBtn, true);
+
+    if (fileData.name.toLowerCase().endsWith('.html') || fileData.name.toLowerCase().endsWith('.htm')) {
+      previewBtn.disabled = false;
+      previewBtn.classList.remove('preview-disabled');
+      previewBtn.classList.add('preview-active');
+    } else {
+      previewBtn.disabled = true;
+      previewBtn.classList.remove('preview-active');
+      previewBtn.classList.add('preview-disabled');
+    }
+
+  } catch (error) {
+    showToast('Erro ao abrir arquivo: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ENFILEIRAMENTO E PROCESSAMENTO INDIVIDUAL
+function queueSaveRequest(fileObj, content) {
+  activeDeploySession++;
+  activeFilesCount++;
+
+  const thisSessionId = activeDeploySession;
+  const toastRef = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila...`, 'info', 0);
+
+  saveQueue.push({
+    file: fileObj,
+    content: content,
+    sessionId: thisSessionId,
+    toastRef: toastRef
+  });
+
+  processSaveQueue();
+}
+
+async function processSaveQueue() {
+  if (isProcessingQueue || saveQueue.length === 0) return;
+
+  isProcessingQueue = true;
+  const currentItem = saveQueue[0];
+  const { file, content, sessionId, toastRef } = currentItem;
+
+  if (toastRef) {
+    toastRef.innerHTML = `⚙️ Enviando alterações de <b>${file.name}</b> para o GitHub...`;
+  }
+
+  try {
+    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
+    
+    const result = await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      file.path,
+      content,
+      latestFileData.sha
+    );
+
+    if (currentFile && currentFile.path === file.path) {
+      currentFile.sha = result.content.sha;
+      originalFileContent = content;
+      updateSaveButtonState(false);
+    }
+
+  } catch (error) {
+    if (toastRef) {
+      toastRef.className = 'toast error';
+      toastRef.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
+      setTimeout(() => toastRef.remove(), 6000);
+    }
+    activeFilesCount = Math.max(0, activeFilesCount - 1);
+  } finally {
+    saveQueue.shift();
+    isProcessingQueue = false;
+
+    loadFiles(currentFolderPath);
+    monitorPageDeploymentForFile(file.name, sessionId, toastRef);
+
+    if (saveQueue.length > 0) {
+      processSaveQueue();
+    }
+  }
+}
+
+saveFileBtn.addEventListener('click', () => {
+  if (!currentFile || !hasUnsavedChanges) return;
+
+  const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  const fileToSave = { ...currentFile };
+  
+  updateSaveButtonState(false);
+  queueSaveRequest(fileToSave, newContent);
+});
+
+expandBtn.addEventListener('click', () => {
+  isExpanded = !isExpanded;
+
+  if (isExpanded) {
+    codeEditorArea.classList.add('fullscreen-editor');
+    fileExplorer.style.display = 'none';
+    expandIcon.innerHTML = retractSVG;
+    if (expandText) expandText.textContent = 'Retrair';
+  } else {
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandIcon.innerHTML = expandSVG;
+    if (expandText) expandText.textContent = 'Expandir';
+  }
+
+  if (monacoEditor && !isMobile) {
+    setTimeout(() => monacoEditor.layout(), 50);
+  }
+});
+
+previewBtn.addEventListener('click', () => {
+  if (!currentFile || previewBtn.disabled) return;
+
+  const content = isMobile ? mobileEditor.value : monacoEditor.getValue();
+  previewModal.style.display = 'flex';
+
+  const doc = previewFrame.contentWindow.document;
+  doc.open();
+  doc.write(content);
+  doc.close();
+});
+
+closePreviewBtn.addEventListener('click', () => {
+  previewModal.style.display = 'none';
+});
+
+// CRIAÇÃO RÁPIDA DE ARQUIVO
+newFileBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  const filename = prompt('Digite o nome do novo arquivo (ex: pagina.html):');
+  if (!filename) return;
+
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${filename}` : filename;
+
+  showLoading('Criando arquivo...');
+  try {
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      fullPath,
+      '',
+      null,
+      `Criado arquivo ${filename} via Web CMS`
+    );
+
+    showToast('Arquivo criado com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao criar arquivo: ' + error.message, 'error');
+    hideLoading();
+  }
+});
+
+// CRIAÇÃO RÁPIDA DE PASTA
+newFolderBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  const folderName = prompt('Digite o nome da nova pasta:');
+  if (!folderName) return;
+
+  const fullPath = currentFolderPath ? `${currentFolderPath}/${folderName}/.gitkeep` : `${folderName}/.gitkeep`;
+
+  showLoading('Criando pasta...');
+  try {
+    await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      fullPath,
+      '',
+      null,
+      `Criada pasta ${folderName} via Web CMS`
+    );
+
+    showToast('Pasta criada com sucesso!');
+    await loadFiles(currentFolderPath);
+  } catch (error) {
+    showToast('Erro ao criar pasta: ' + error.message, 'error');
+    hideLoading();
+  }
+});
+
+deleteFileBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  await deleteFileByPath(currentFile.path, currentFile.sha);
+});
+
+backToReposBtn.addEventListener('click', async () => {
+  if (!checkUnsavedChanges()) return;
+
+  currentFile = null;
+  originalFileContent = '';
+  currentFolderPath = '';
+  updateSaveButtonState(false);
+
+  if (isExpanded) {
+    isExpanded = false;
+    codeEditorArea.classList.remove('fullscreen-editor');
+    fileExplorer.style.display = 'block';
+    expandIcon.innerHTML = expandSVG;
+    if (expandText) expandText.textContent = 'Expandir';
+  }
+
+  if (isMobile) {
+    mobileEditor.value = '';
+    mobileEditor.style.display = 'none';
+  } else {
+    monacoEditor.setValue('// Selecione um arquivo para começar a editar...');
+  }
+
+  setActionButtonVisibility(saveFileBtn, false);
+  setActionButtonVisibility(deleteFileBtn, false);
+  setActionButtonVisibility(expandBtn, false);
+  setActionButtonVisibility(previewBtn, false);
+  currentFileTitle.innerHTML = 'Nenhum arquivo selecionado';
+  await loadRepositories();
+});
