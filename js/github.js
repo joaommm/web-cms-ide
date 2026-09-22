@@ -232,3 +232,4 @@ class GitHubAPI {
     throw new Error('Tempo limite excedido aguardando a publicação do site.');
   }
 }
+ 
