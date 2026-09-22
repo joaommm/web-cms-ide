@@ -12,11 +12,10 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA E CONTROLE DE DEPLOY POR ARQUIVO
+// FILA ASSÍNCRONA E SESSÕES INDEPENDENTES DE DEPLOY
 const saveQueue = [];
 let isProcessingQueue = false;
-let activeDeploySession = 0;
-const fileToasts = {}; // Armazena os toasts de cada arquivo individualmente
+let activeDeploySession = 0; // ID da última sessão global iniciada
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -95,177 +94,104 @@ function showToast(message, type = 'success', duration = 3500) {
 
   if (duration > 0) {
     setTimeout(() => {
-      toast.remove();
+      if (toast.parentNode) toast.remove();
     }, duration);
   }
 
   return toast;
 }
 
-// GERENCIADOR DE MENSAGENS INDIVIDUAIS POR ARQUIVO
-function updateFileToast(filePath, fileName, message, type = 'info', duration = 0) {
-  if (fileToasts[filePath]) {
-    fileToasts[filePath].className = `toast ${type}`;
-    fileToasts[filePath].innerHTML = `<b>[${fileName}]</b> ${message}`;
-    if (duration > 0) {
-      const t = fileToasts[filePath];
-      delete fileToasts[filePath];
-      setTimeout(() => t.remove(), duration);
-    }
-  } else {
-    const t = showToast(`<b>[${fileName}]</b> ${message}`, type, duration);
-    if (duration === 0) {
-      fileToasts[filePath] = t;
-    }
-  }
-}
-
-function removeFileToast(filePath) {
-  if (fileToasts[filePath]) {
-    fileToasts[filePath].remove();
-    delete fileToasts[filePath];
-  }
-}
-
-// MONITORAMENTO DE DEPLOY INDIVIDUAL COM INDICAÇÃO DE PAUSA
-async function monitorPageDeployment(fileObj) {
+// MONITORAMENTO INDIVIDUAL DE CADA ARQUIVO SALVO
+async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
   if (!github || !currentUser || !currentRepo) return;
-
-  const sessionId = activeDeploySession;
-  const filePath = fileObj.path;
-  const fileName = fileObj.name;
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      updateFileToast(filePath, fileName, '💾 Alterações salvas no repositório!', 'info', 4000);
+      if (toastRef) {
+        toastRef.className = 'toast success';
+        toastRef.innerHTML = `💾 Alteração em <b>${fileName}</b> salva no repositório!`;
+        setTimeout(() => toastRef.remove(), 4000);
+      }
       return;
     }
 
-    updateFileToast(filePath, fileName, '🚀 Alteração enviada. Verificando no GitHub Pages...', 'info', 0);
+    if (toastRef) {
+      toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando publicação no GitHub Pages...`;
+    }
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      if (sessionId !== activeDeploySession) return;
-      updateFileToast(filePath, fileName, statusMsg, 'info', 0);
+      // Se há um novo arquivo na fila ou sendo enviado, sinaliza a pausa/espera no aviso deste arquivo
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+        if (toastRef) {
+          const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'outro arquivo';
+          toastRef.innerHTML = `⏸️ <b>${fileName}</b> aguardando conclusão de <b>${nextFile}</b>...`;
+        }
+        return;
+      }
+      if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
-    if (sessionId !== activeDeploySession) return;
-
-    updateFileToast(filePath, fileName, '🔄 Finalizando sincronização nos servidores...', 'info', 0);
-    
-    // Aguarda propagação do CDN
-    for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      if (sessionId !== activeDeploySession) return;
-    }
-
-    // VERIFICA SE EXISTEM OUTROS ARQUIVOS POSTERIORES EM ANDAMENTO
-    if (saveQueue.length > 0 || isProcessingQueue) {
-      const nextItem = saveQueue[0];
-      const nextName = nextItem ? nextItem.file.name : 'outro arquivo';
-      
-      updateFileToast(
-        filePath, 
-        fileName, 
-        `⏸️ <b>[PAUSADO]</b> Publicado! Aguardando a conclusão de <u>${nextName}</u> para reiniciar...`, 
-        'info', 
-        0
-      );
-      return;
-    }
-
+    // Se a reinicialização automática estiver DESATIVADA
     if (!isAutoReloadEnabled) {
-      updateFileToast(filePath, fileName, '✨ Publicado com sucesso!', 'success', 5000);
+      if (toastRef) {
+        toastRef.className = 'toast success';
+        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado com sucesso!`;
+        setTimeout(() => toastRef.remove(), 5000);
+      }
       return;
     }
 
-    // SE FOR O ÚLTIMO ARQUIVO, DISPARA A CONTAGEM E LIMPA AS MENSAGENS
-    let countdown = 3;
-    
-    // Atualiza a mensagem deste arquivo final
-    updateFileToast(filePath, fileName, `✨ Publicado! Recarregando a página em <b>${countdown}s</b>...`, 'success', 0);
+    // Se outro arquivo entrou em processamento/fila, aguarda ele finalizar antes do reload
+    while (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
+      if (toastRef) {
+        const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'novo processo';
+        toastRef.innerHTML = `⏸️ <b>${fileName}</b> publicado. Pausado aguardando término de <b>${nextFile}</b> para reiniciar...`;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
 
+    if (toastRef) {
+      toastRef.className = 'toast success';
+      toastRef.innerHTML = `🔄 <b>${fileName}</b>: Finalizando sincronização nos servidores...`;
+    }
+
+    // Pequena pausa de propagação no CDN
+    for (let i = 0; i < 3; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) return;
+    }
+
+    // INÍCIO DA CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO
+    let countdown = 3;
     const countdownInterval = setInterval(() => {
-      if (saveQueue.length > 0) {
+      // Se outro arquivo começou a ser editado/salvo no meio da contagem, pausa novamente
+      if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
         clearInterval(countdownInterval);
-        updateFileToast(filePath, fileName, `⏸️ <b>[PAUSADO]</b> Novas edições detectadas. Reinício pausado.`, 'info', 0);
         return;
       }
 
       if (countdown > 0) {
-        updateFileToast(filePath, fileName, `✨ Publicado! Recarregando a página em <b>${countdown}s</b>...`, 'success', 0);
+        if (toastRef) {
+          toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando em <b>${countdown}s</b> por conta de <b>${fileName}</b>...</small>`;
+        }
         countdown--;
       } else {
         clearInterval(countdownInterval);
-        updateFileToast(filePath, fileName, '🔄 Recarregando agora...', 'success', 0);
+        if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
-        // Limpa todas as mensagens ativas antes de recarregar
-        Object.keys(fileToasts).forEach(k => removeFileToast(k));
-
+        // RECARREGA COM BYPASS DE CACHE
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
     }, 1000);
 
   } catch (error) {
-    updateFileToast(filePath, fileName, '💾 Salvo no repositório!', 'success', 4000);
-  }
-}
-
-// FILA ASSÍNCRONA DE SALVAMENTO
-function queueSaveRequest(fileObj, content) {
-  activeDeploySession++;
-
-  saveQueue.push({ file: fileObj, content: content });
-  updateFileToast(fileObj.path, fileObj.name, '⏳ Adicionado à fila de salvamento...', 'info', 0);
-
-  processSaveQueue();
-}
-
-async function processSaveQueue() {
-  if (isProcessingQueue || saveQueue.length === 0) return;
-
-  isProcessingQueue = true;
-  const currentItem = saveQueue[0];
-  const { file, content } = currentItem;
-
-  updateFileToast(file.path, file.name, '⚙️ Salvando alterações...', 'info', 0);
-
-  try {
-    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
-    
-    const result = await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      file.path,
-      content,
-      latestFileData.sha
-    );
-
-    if (currentFile && currentFile.path === file.path) {
-      currentFile.sha = result.content.sha;
-      originalFileContent = content;
-      updateSaveButtonState(false);
-    }
-
-    updateFileToast(file.path, file.name, '✅ Enviado para o GitHub! Aguardando deploy...', 'info', 0);
-
-  } catch (error) {
-    updateFileToast(file.path, file.name, `❌ Erro ao salvar: ${error.message}`, 'error', 6000);
-  } finally {
-    const processedItem = saveQueue.shift();
-    isProcessingQueue = false;
-
-    // Atualiza a arvore de arquivos
-    loadFiles(currentFolderPath);
-
-    // Inicia o rastreamento individual do deploy para este arquivo
-    monitorPageDeployment(processedItem.file);
-
-    // Se ainda houver itens na fila, continua processando o próximo
-    if (saveQueue.length > 0) {
-      processSaveQueue();
+    if (toastRef) {
+      toastRef.className = 'toast success';
+      toastRef.innerHTML = `💾 <b>${fileName}</b> salvo no repositório!`;
+      setTimeout(() => toastRef.remove(), 4000);
     }
   }
 }
@@ -582,8 +508,10 @@ toggleDeleteModeBtn.addEventListener('click', () => {
 });
 
 async function loadFiles(path = '') {
+  showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
-  
+  fileTree.innerHTML = '';
+
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
     
@@ -671,7 +599,10 @@ async function loadFiles(path = '') {
       await loadFiles(currentFolderPath);
     } else {
       fileTree.innerHTML = '<li>Nenhum arquivo encontrado.</li>';
+      hideLoading();
     }
+  } finally {
+    hideLoading();
   }
 }
 
@@ -689,7 +620,6 @@ async function deleteFolder(folderPath, folderName) {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 }
@@ -726,7 +656,6 @@ async function deleteFileByPath(filePath, sha) {
 
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 }
@@ -778,6 +707,75 @@ async function openFile(filePath) {
     showToast('Erro ao abrir arquivo: ' + error.message, 'error');
   } finally {
     hideLoading();
+  }
+}
+
+// ENFILEIRAMENTO E PROCESSAMENTO INDIVIDUAL DE SALVAMENTO
+function queueSaveRequest(fileObj, content) {
+  activeDeploySession++; // Nova sessão global
+  const thisSessionId = activeDeploySession;
+
+  // Cria um aviso permanente individual para ESTE arquivo específico
+  const toastRef = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila de envio...`, 'info', 0);
+
+  saveQueue.push({
+    file: fileObj,
+    content: content,
+    sessionId: thisSessionId,
+    toastRef: toastRef
+  });
+
+  processSaveQueue();
+}
+
+async function processSaveQueue() {
+  if (isProcessingQueue || saveQueue.length === 0) return;
+
+  isProcessingQueue = true;
+  const currentItem = saveQueue[0];
+  const { file, content, sessionId, toastRef } = currentItem;
+
+  if (toastRef) {
+    toastRef.innerHTML = `⚙️ Enviando alterações de <b>${file.name}</b> para o GitHub...`;
+  }
+
+  try {
+    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
+    
+    const result = await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      file.path,
+      content,
+      latestFileData.sha
+    );
+
+    if (currentFile && currentFile.path === file.path) {
+      currentFile.sha = result.content.sha;
+      originalFileContent = content;
+      updateSaveButtonState(false);
+    }
+
+  } catch (error) {
+    if (toastRef) {
+      toastRef.className = 'toast error';
+      toastRef.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
+      setTimeout(() => toastRef.remove(), 6000);
+    }
+  } finally {
+    saveQueue.shift();
+    isProcessingQueue = false;
+
+    // Atualiza a lista de arquivos na interface
+    loadFiles(currentFolderPath);
+
+    // Inicia o monitoramento de publicação para ESTE arquivo específico
+    monitorPageDeploymentForFile(file.name, sessionId, toastRef);
+
+    // Se houver mais arquivos na fila, continua o envio do próximo
+    if (saveQueue.length > 0) {
+      processSaveQueue();
+    }
   }
 }
 
@@ -851,7 +849,6 @@ newFileBtn.addEventListener('click', async () => {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar arquivo: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 });
@@ -880,7 +877,6 @@ newFolderBtn.addEventListener('click', async () => {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar pasta: ' + error.message, 'error');
-  } finally {
     hideLoading();
   }
 });
