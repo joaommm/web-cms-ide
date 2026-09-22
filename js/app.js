@@ -12,11 +12,11 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA E CONTROLE GLOBAL DE DEPLOY
+// CONTROLE DE FILA E DEPLOY SESSÃO
 const saveQueue = [];
 let isProcessingQueue = false;
-let activeDeploySession = 0; // ID único para a sessão de deploy mais recente
-let currentDeployToast = null; // Toast único e persistente do status de deploy
+let activeDeploySession = 0; // Identificador único da rodada de deploy
+let reloadToast = null; // Toast exclusivo da contagem regressiva/reload
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -87,7 +87,7 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
-function showToast(message, type = 'success', duration = 3500) {
+function showToast(message, type = 'success', duration = 4000) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerHTML = message;
@@ -102,79 +102,76 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY COM CONTROLE DE SESSÃO MULTI-ARQUIVOS
+// MONITORAMENTO DO DEPLOY NO GITHUB PAGES
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  // Cria uma nova sessão única de deploy
   const sessionId = ++activeDeploySession;
 
-  // Se ainda houver tarefas na fila, adia e avisa
-  if (saveQueue.length > 0) {
-    if (currentDeployToast) currentDeployToast.remove();
-    currentDeployToast = showToast(`⏳ Alteração salva! Aguardando o salvamento dos próximos arquivos da fila...`, 'info', 0);
-    return;
-  }
+  // Se houver mais arquivos na fila de salvamento, adia a verificação do reload
+  if (saveQueue.length > 0) return;
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      if (currentDeployToast) currentDeployToast.remove();
-      showToast('💾 Alterações salvas no repositório!', 'info', 5000);
+      showToast('💾 Alterações salvas com sucesso no repositório!', 'success', 4000);
       return;
     }
 
-    if (currentDeployToast) currentDeployToast.remove();
-    currentDeployToast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
+    const deployToast = showToast('🚀 Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      // Se uma nova edição iniciou outra sessão enquanto este monitoramento rodava
-      if (sessionId !== activeDeploySession) return;
-      if (currentDeployToast) currentDeployToast.innerHTML = statusMsg;
+      if (sessionId !== activeDeploySession) {
+        deployToast.remove();
+        return;
+      }
+      deployToast.innerHTML = statusMsg;
     });
 
-    // Cancela se uma nova alteração foi feita durante a checagem
-    if (sessionId !== activeDeploySession || saveQueue.length > 0) return;
-
-    if (currentDeployToast) currentDeployToast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
-    
-    // Aguarda propagação no CDN do GitHub
-    for (let i = 0; i < 5; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      if (sessionId !== activeDeploySession || saveQueue.length > 0) return;
-    }
-
-    if (!isAutoReloadEnabled) {
-      if (currentDeployToast) {
-        currentDeployToast.className = 'toast success';
-        currentDeployToast.innerHTML = '✨ Site publicado com sucesso!';
-        setTimeout(() => currentDeployToast.remove(), 6000);
-      }
+    if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+      deployToast.remove();
       return;
     }
 
-    // INÍCIO DA CONTAGEM REGRESSIVA ÚNICA
+    deployToast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
+
+    for (let i = 0; i < 4; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+        deployToast.remove();
+        return;
+      }
+    }
+
+    deployToast.remove();
+
+    if (!isAutoReloadEnabled) {
+      showToast('✨ Todas as alterações foram publicadas com sucesso!', 'success', 5000);
+      return;
+    }
+
+    // CONTAGEM REGRESSIVA PARA RECARREGAR
     let countdown = 3;
-    if (currentDeployToast) currentDeployToast.className = 'toast success';
+    if (reloadToast) reloadToast.remove();
+    reloadToast = showToast(`✨ Publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`, 'success', 0);
 
     const countdownInterval = setInterval(() => {
-      // Se outro arquivo foi salvo no meio da contagem, invalida este reload
       if (sessionId !== activeDeploySession || saveQueue.length > 0) {
         clearInterval(countdownInterval);
+        if (reloadToast) reloadToast.remove();
         return;
       }
 
       if (countdown > 0) {
-        if (currentDeployToast) {
-          currentDeployToast.innerHTML = `✨ Todas as alterações foram publicadas! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+        if (reloadToast) {
+          reloadToast.innerHTML = `✨ Publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
         }
         countdown--;
       } else {
         clearInterval(countdownInterval);
-        if (currentDeployToast) currentDeployToast.innerHTML = '🔄 Recarregando agora...';
+        if (reloadToast) reloadToast.innerHTML = '🔄 Recarregando agora...';
         
-        // RECARREGA COM BYPASS DE CACHE
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
@@ -182,13 +179,12 @@ async function monitorPageDeployment() {
 
   } catch (error) {
     if (sessionId === activeDeploySession) {
-      if (currentDeployToast) currentDeployToast.remove();
-      showToast('💾 Alterações salvas no repositório!', 'success', 5000);
+      showToast('💾 Alterações salvas no repositório!', 'success', 4000);
     }
   }
 }
 
-// TOGGLE DO AUTO-RELOAD NAS CONFIGURAÇÕES
+// TOGGLE DO AUTO-RELOAD
 function toggleAutoReload() {
   isAutoReloadEnabled = !isAutoReloadEnabled;
   localStorage.setItem('auto_reload', isAutoReloadEnabled ? 'true' : 'false');
@@ -702,28 +698,42 @@ async function openFile(filePath) {
   }
 }
 
-// FILA ASSÍNCRONA DE SALVAMENTO DE ARQUIVOS
+// ADICIONA O PEDIDO DE SALVAMENTO DE UM ARQUIVO À FILA
 function queueSaveRequest(fileObj, content) {
-  // Invalida sessões anteriores de reload
-  activeDeploySession++;
+  activeDeploySession++; // Cancela reloads ativos para sincronizar com este novo envio
 
-  saveQueue.push({ file: fileObj, content: content });
+  const isAlreadySending = isProcessingQueue;
+  
+  // Cria o item da fila junto com a referência do seu próprio toast
+  const queueItem = {
+    file: fileObj,
+    content: content,
+    toast: null
+  };
 
-  if (currentDeployToast) currentDeployToast.remove();
-  currentDeployToast = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila (${saveQueue.length} na fila). Aguardando envio...`, 'info', 0);
+  if (isAlreadySending) {
+    queueItem.toast = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila. Aguardando a conclusão dos anteriores...`, 'info', 0);
+  } else {
+    queueItem.toast = showToast(`⚙️ Enviando <b>${fileObj.name}</b> para o GitHub...`, 'info', 0);
+  }
 
+  saveQueue.push(queueItem);
   processSaveQueue();
 }
 
+// PROCESSA OS ARQUIVOS DA FILA UM A UM
 async function processSaveQueue() {
   if (isProcessingQueue || saveQueue.length === 0) return;
 
   isProcessingQueue = true;
   const currentItem = saveQueue[0];
-  const { file, content } = currentItem;
-  
-  const totalPending = saveQueue.length;
-  if (currentDeployToast) currentDeployToast.innerHTML = `⚙️ Enviando <b>${file.name}</b> (${totalPending} pendente${totalPending > 1 ? 's' : ''})...`;
+  const { file, content, toast } = currentItem;
+
+  // Atualiza a mensagem do toast individual para status de envio
+  if (toast) {
+    toast.className = 'toast info';
+    toast.innerHTML = `⚙️ Enviando <b>${file.name}</b> para o GitHub...`;
+  }
 
   try {
     const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
@@ -742,9 +752,19 @@ async function processSaveQueue() {
       updateSaveButtonState(false);
     }
 
+    // Sucesso para ESTE arquivo específico
+    if (toast) {
+      toast.className = 'toast success';
+      toast.innerHTML = `✅ <b>${file.name}</b> salvo com sucesso!`;
+      setTimeout(() => toast.remove(), 4000);
+    }
+
   } catch (error) {
-    if (currentDeployToast) currentDeployToast.remove();
-    showToast(`❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`, 'error', 5000);
+    if (toast) {
+      toast.className = 'toast error';
+      toast.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
+      setTimeout(() => toast.remove(), 6000);
+    }
   } finally {
     saveQueue.shift();
     isProcessingQueue = false;
