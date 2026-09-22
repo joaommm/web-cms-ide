@@ -12,12 +12,11 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA E CONTROLE GLOBAL DE DEPLOY
+// FILA ASSÍNCRONA E CONTROLE DE DEPLOY POR ARQUIVO
 const saveQueue = [];
 let isProcessingQueue = false;
-let activeDeploySession = 0; // ID único para a sessão de deploy mais recente
-let currentDeployToast = null; // Toast único e persistente do status de deploy
-let lastSavedFileName = ''; // Guarda o nome do último arquivo que estava no deploy
+let activeDeploySession = 0;
+const fileToasts = {}; // Armazena os toasts de cada arquivo individualmente
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -77,7 +76,7 @@ const toastContainer = document.getElementById('toast-container');
 
 // SVG ÍCONES PARA RETRAIR E EXPANDIR
 const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
-const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M3 21l7-7"/></svg>`;
 
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
@@ -103,76 +102,106 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY COM AVISO DE PAUSA
-async function monitorPageDeployment(fileName) {
+// GERENCIADOR DE MENSAGENS INDIVIDUAIS POR ARQUIVO
+function updateFileToast(filePath, fileName, message, type = 'info', duration = 0) {
+  if (fileToasts[filePath]) {
+    fileToasts[filePath].className = `toast ${type}`;
+    fileToasts[filePath].innerHTML = `<b>[${fileName}]</b> ${message}`;
+    if (duration > 0) {
+      const t = fileToasts[filePath];
+      delete fileToasts[filePath];
+      setTimeout(() => t.remove(), duration);
+    }
+  } else {
+    const t = showToast(`<b>[${fileName}]</b> ${message}`, type, duration);
+    if (duration === 0) {
+      fileToasts[filePath] = t;
+    }
+  }
+}
+
+function removeFileToast(filePath) {
+  if (fileToasts[filePath]) {
+    fileToasts[filePath].remove();
+    delete fileToasts[filePath];
+  }
+}
+
+// MONITORAMENTO DE DEPLOY INDIVIDUAL COM INDICAÇÃO DE PAUSA
+async function monitorPageDeployment(fileObj) {
   if (!github || !currentUser || !currentRepo) return;
 
-  const sessionId = ++activeDeploySession;
-  lastSavedFileName = fileName || 'arquivo';
-
-  // Se houver mais arquivos pendentes na fila
-  if (saveQueue.length > 0) {
-    if (currentDeployToast) currentDeployToast.remove();
-    const nextFileName = saveQueue[0].file.name;
-    currentDeployToast = showToast(`⏸️ <b>Reinicialização de "${lastSavedFileName}" pausada!</b><br><small>Aguardando o término de "${nextFileName}"...</small>`, 'info', 0);
-    return;
-  }
+  const sessionId = activeDeploySession;
+  const filePath = fileObj.path;
+  const fileName = fileObj.name;
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      if (currentDeployToast) currentDeployToast.remove();
-      showToast(`💾 Alterações salvas no repositório para <b>${lastSavedFileName}</b>!`, 'info', 5000);
+      updateFileToast(filePath, fileName, '💾 Alterações salvas no repositório!', 'info', 4000);
       return;
     }
 
-    if (currentDeployToast) currentDeployToast.remove();
-    currentDeployToast = showToast(`🚀 <b>${lastSavedFileName}</b> enviado. Verificando publicação no GitHub Pages...`, 'info', 0);
+    updateFileToast(filePath, fileName, '🚀 Alteração enviada. Verificando no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       if (sessionId !== activeDeploySession) return;
-      if (currentDeployToast) currentDeployToast.innerHTML = `📄 <b>${lastSavedFileName}</b>: ${statusMsg}`;
+      updateFileToast(filePath, fileName, statusMsg, 'info', 0);
     });
 
-    if (sessionId !== activeDeploySession || saveQueue.length > 0) return;
+    if (sessionId !== activeDeploySession) return;
 
-    if (currentDeployToast) currentDeployToast.innerHTML = `🔄 Sincronizando alterações nos servidores do GitHub...`;
-
-    // Pausa técnica para propagação no servidor CDN
+    updateFileToast(filePath, fileName, '🔄 Finalizando sincronização nos servidores...', 'info', 0);
+    
+    // Aguarda propagação do CDN
     for (let i = 0; i < 4; i++) {
       await new Promise(r => setTimeout(r, 1000));
-      if (sessionId !== activeDeploySession || saveQueue.length > 0) return;
+      if (sessionId !== activeDeploySession) return;
     }
 
-    if (!isAutoReloadEnabled) {
-      if (currentDeployToast) {
-        currentDeployToast.className = 'toast success';
-        currentDeployToast.innerHTML = `✨ <b>${lastSavedFileName}</b> e pendências foram publicados com sucesso!`;
-        setTimeout(() => currentDeployToast.remove(), 6000);
-      }
+    // VERIFICA SE EXISTEM OUTROS ARQUIVOS POSTERIORES EM ANDAMENTO
+    if (saveQueue.length > 0 || isProcessingQueue) {
+      const nextItem = saveQueue[0];
+      const nextName = nextItem ? nextItem.file.name : 'outro arquivo';
+      
+      updateFileToast(
+        filePath, 
+        fileName, 
+        `⏸️ <b>[PAUSADO]</b> Publicado! Aguardando a conclusão de <u>${nextName}</u> para reiniciar...`, 
+        'info', 
+        0
+      );
       return;
     }
 
-    // CONTAGEM REGRESSIVA DO ÚLTIMO ARQUIVO
+    if (!isAutoReloadEnabled) {
+      updateFileToast(filePath, fileName, '✨ Publicado com sucesso!', 'success', 5000);
+      return;
+    }
+
+    // SE FOR O ÚLTIMO ARQUIVO, DISPARA A CONTAGEM E LIMPA AS MENSAGENS
     let countdown = 3;
-    if (currentDeployToast) currentDeployToast.className = 'toast success';
+    
+    // Atualiza a mensagem deste arquivo final
+    updateFileToast(filePath, fileName, `✨ Publicado! Recarregando a página em <b>${countdown}s</b>...`, 'success', 0);
 
     const countdownInterval = setInterval(() => {
-      // Se um novo salvamento ocorrer durante a contagem
-      if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+      if (saveQueue.length > 0) {
         clearInterval(countdownInterval);
+        updateFileToast(filePath, fileName, `⏸️ <b>[PAUSADO]</b> Novas edições detectadas. Reinício pausado.`, 'info', 0);
         return;
       }
 
       if (countdown > 0) {
-        if (currentDeployToast) {
-          currentDeployToast.innerHTML = `✨ Todos os arquivos foram publicados com sucesso!<br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
-        }
+        updateFileToast(filePath, fileName, `✨ Publicado! Recarregando a página em <b>${countdown}s</b>...`, 'success', 0);
         countdown--;
       } else {
         clearInterval(countdownInterval);
-        if (currentDeployToast) currentDeployToast.innerHTML = '🔄 Recarregando agora...';
+        updateFileToast(filePath, fileName, '🔄 Recarregando agora...', 'success', 0);
+        
+        // Limpa todas as mensagens ativas antes de recarregar
+        Object.keys(fileToasts).forEach(k => removeFileToast(k));
 
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
@@ -180,14 +209,68 @@ async function monitorPageDeployment(fileName) {
     }, 1000);
 
   } catch (error) {
-    if (sessionId === activeDeploySession) {
-      if (currentDeployToast) currentDeployToast.remove();
-      showToast(`💾 Alterações de <b>${lastSavedFileName}</b> salvas no repositório!`, 'success', 5000);
+    updateFileToast(filePath, fileName, '💾 Salvo no repositório!', 'success', 4000);
+  }
+}
+
+// FILA ASSÍNCRONA DE SALVAMENTO
+function queueSaveRequest(fileObj, content) {
+  activeDeploySession++;
+
+  saveQueue.push({ file: fileObj, content: content });
+  updateFileToast(fileObj.path, fileObj.name, '⏳ Adicionado à fila de salvamento...', 'info', 0);
+
+  processSaveQueue();
+}
+
+async function processSaveQueue() {
+  if (isProcessingQueue || saveQueue.length === 0) return;
+
+  isProcessingQueue = true;
+  const currentItem = saveQueue[0];
+  const { file, content } = currentItem;
+
+  updateFileToast(file.path, file.name, '⚙️ Salvando alterações...', 'info', 0);
+
+  try {
+    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
+    
+    const result = await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      file.path,
+      content,
+      latestFileData.sha
+    );
+
+    if (currentFile && currentFile.path === file.path) {
+      currentFile.sha = result.content.sha;
+      originalFileContent = content;
+      updateSaveButtonState(false);
+    }
+
+    updateFileToast(file.path, file.name, '✅ Enviado para o GitHub! Aguardando deploy...', 'info', 0);
+
+  } catch (error) {
+    updateFileToast(file.path, file.name, `❌ Erro ao salvar: ${error.message}`, 'error', 6000);
+  } finally {
+    const processedItem = saveQueue.shift();
+    isProcessingQueue = false;
+
+    // Atualiza a arvore de arquivos
+    loadFiles(currentFolderPath);
+
+    // Inicia o rastreamento individual do deploy para este arquivo
+    monitorPageDeployment(processedItem.file);
+
+    // Se ainda houver itens na fila, continua processando o próximo
+    if (saveQueue.length > 0) {
+      processSaveQueue();
     }
   }
 }
 
-// TOGGLE DO AUTO-RELOAD
+// TOGGLE DO AUTO-RELOAD NAS CONFIGURAÇÕES
 function toggleAutoReload() {
   isAutoReloadEnabled = !isAutoReloadEnabled;
   localStorage.setItem('auto_reload', isAutoReloadEnabled ? 'true' : 'false');
@@ -235,7 +318,7 @@ function setActionButtonVisibility(button, visible) {
 function updateSaveButtonState(modified) {
   hasUnsavedChanges = modified;
   const labelSpan = saveFileBtn.querySelector('.btn-label');
-
+  
   if (modified) {
     saveFileBtn.classList.remove('save-disabled');
     saveFileBtn.classList.add('save-active');
@@ -487,7 +570,7 @@ toggleDeleteModeBtn.addEventListener('click', () => {
   isDeleteMode = !isDeleteMode;
   toggleDeleteModeBtn.classList.toggle('delete-mode-active', isDeleteMode);
   showToast(isDeleteMode ? 'Modo de exclusão ativado.' : 'Modo de exclusão desativado.');
-
+  
   const actionContainers = document.querySelectorAll('.tree-item-actions');
   actionContainers.forEach(container => {
     if (isDeleteMode) {
@@ -499,13 +582,11 @@ toggleDeleteModeBtn.addEventListener('click', () => {
 });
 
 async function loadFiles(path = '') {
-  showLoading('Carregando arquivos...');
   currentPathDisplay.textContent = path ? `/${path}` : '/';
-  fileTree.innerHTML = '';
-
+  
   try {
     let contents = await github.getContents(currentUser.login, currentRepo, path);
-
+    
     if (!Array.isArray(contents)) {
       contents = [];
     }
@@ -590,10 +671,7 @@ async function loadFiles(path = '') {
       await loadFiles(currentFolderPath);
     } else {
       fileTree.innerHTML = '<li>Nenhum arquivo encontrado.</li>';
-      hideLoading();
     }
-  } finally {
-    hideLoading();
   }
 }
 
@@ -611,6 +689,7 @@ async function deleteFolder(folderPath, folderName) {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
+  } finally {
     hideLoading();
   }
 }
@@ -627,7 +706,7 @@ async function deleteFileByPath(filePath, sha) {
       currentFile = null;
       originalFileContent = '';
       updateSaveButtonState(false);
-
+      
       if (isMobile) {
         mobileEditor.value = '';
         mobileEditor.style.display = 'none';
@@ -647,6 +726,7 @@ async function deleteFileByPath(filePath, sha) {
 
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
+  } finally {
     hideLoading();
   }
 }
@@ -701,83 +781,12 @@ async function openFile(filePath) {
   }
 }
 
-// FILA ASSÍNCRONA DE SALVAMENTO COM MENSAGENS DETALHADAS POR ARQUIVO
-function queueSaveRequest(fileObj, content) {
-  // Invalida reinicializações pendentes anteriores
-  activeDeploySession++;
-
-  saveQueue.push({ file: fileObj, content: content });
-
-  const isFirstInQueue = saveQueue.length === 1;
-
-  if (currentDeployToast) currentDeployToast.remove();
-
-  if (isFirstInQueue) {
-    currentDeployToast = showToast(`⚙️ Preparando para salvar <b>${fileObj.name}</b>...`, 'info', 0);
-  } else {
-    currentDeployToast = showToast(
-      `⏸️ <b>Processo anterior pausado!</b><br><small>Adicionado <b>${fileObj.name}</b> à fila (${saveQueue.length} na fila). Aguardando processamento...</small>`,
-      'info',
-      0
-    );
-  }
-
-  processSaveQueue();
-}
-
-async function processSaveQueue() {
-  if (isProcessingQueue || saveQueue.length === 0) return;
-
-  isProcessingQueue = true;
-  const currentItem = saveQueue[0];
-  const { file, content } = currentItem;
-
-  if (currentDeployToast) {
-    currentDeployToast.innerHTML = `💾 Salvando arquivo: <b>${file.name}</b> no GitHub...`;
-  }
-
-  try {
-    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
-
-    const result = await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      file.path,
-      content,
-      latestFileData.sha
-    );
-
-    if (currentFile && currentFile.path === file.path) {
-      currentFile.sha = result.content.sha;
-      originalFileContent = content;
-      updateSaveButtonState(false);
-    }
-
-    // Exibe notificação de sucesso específica do arquivo enviado
-    showToast(`✅ Arquivo <b>${file.name}</b> salvo com sucesso!`, 'success', 3000);
-
-  } catch (error) {
-    if (currentDeployToast) currentDeployToast.remove();
-    showToast(`❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`, 'error', 5000);
-  } finally {
-    const processedFile = saveQueue.shift();
-    isProcessingQueue = false;
-
-    if (saveQueue.length > 0) {
-      processSaveQueue();
-    } else {
-      await loadFiles(currentFolderPath);
-      monitorPageDeployment(processedFile.file.name);
-    }
-  }
-}
-
 saveFileBtn.addEventListener('click', () => {
   if (!currentFile || !hasUnsavedChanges) return;
 
   const newContent = isMobile ? mobileEditor.value : monacoEditor.getValue();
   const fileToSave = { ...currentFile };
-
+  
   updateSaveButtonState(false);
   queueSaveRequest(fileToSave, newContent);
 });
@@ -842,6 +851,7 @@ newFileBtn.addEventListener('click', async () => {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar arquivo: ' + error.message, 'error');
+  } finally {
     hideLoading();
   }
 });
@@ -870,6 +880,7 @@ newFolderBtn.addEventListener('click', async () => {
     await loadFiles(currentFolderPath);
   } catch (error) {
     showToast('Erro ao criar pasta: ' + error.message, 'error');
+  } finally {
     hideLoading();
   }
 });
