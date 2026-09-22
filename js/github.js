@@ -172,6 +172,18 @@ class GitHubAPI {
     return false;
   }
 
+  async checkPagesEnabled(owner, repo) {
+    try {
+      const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/pages`), {
+        headers: this.headers,
+        cache: 'no-store'
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async getWorkflowRuns(owner, repo) {
     const response = await fetch(this.buildUrl(`/repos/${owner}/${repo}/actions/runs?per_page=5`), {
       headers: this.headers,
@@ -185,7 +197,6 @@ class GitHubAPI {
     const startTime = Date.now();
     let initialRunId = null;
 
-    // Tenta identificar o workflow mais recente antes de começar a aguardar novas atualizações
     try {
       const runs = await this.getWorkflowRuns(owner, repo);
       if (runs.workflow_runs && runs.workflow_runs.length > 0) {
@@ -220,4 +231,4 @@ class GitHubAPI {
 
     throw new Error('Tempo limite excedido aguardando a publicação do site.');
   }
-} 
+}
