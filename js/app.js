@@ -74,7 +74,7 @@ const toastContainer = document.getElementById('toast-container');
 
 // SVG ÍCONES PARA RETRAIR E EXPANDIR
 const expandSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
-const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M3 21l7-7"/></svg>`;
+const retractSVG = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/></svg>`;
 
 function showLoading(message = 'Carregando...') {
   loadingMessage.textContent = message;
@@ -100,31 +100,7 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// GARANTE QUE APENAS A SEÇÃO CORRETA FIQUE VISÍVEL
-function showSection(sectionName) {
-  loginSection.style.display = 'none';
-  dashboardSection.style.display = 'none';
-  editorSection.style.display = 'none';
-
-  if (sectionName === 'login') {
-    loginSection.style.display = 'block';
-    mainHeader.style.display = 'flex';
-    loginHeaderTools.style.display = 'flex';
-    headerActionsWrapper.style.display = 'none';
-  } else if (sectionName === 'dashboard') {
-    dashboardSection.style.display = 'block';
-    mainHeader.style.display = 'flex';
-    loginHeaderTools.style.display = 'none';
-    headerActionsWrapper.style.display = 'flex';
-  } else if (sectionName === 'editor') {
-    editorSection.style.display = 'block';
-    mainHeader.style.display = 'none';
-    loginHeaderTools.style.display = 'none';
-    headerActionsWrapper.style.display = 'flex';
-  }
-}
-
-// MONITORAMENTO INTELIGENTE E AUTO-RELOAD
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO LIMPO NA TELA INICIAL
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
@@ -132,11 +108,11 @@ async function monitorPageDeployment() {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      showToast('💾 Alterações salvas no repositório!', 'info', 4000);
+      showToast('💾 Alterações salvas no repositório!', 'info', 5000);
       return;
     }
 
-    const toast = showToast('🚀 Alteração enviada. Verificando publicação...', 'info', 0);
+    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
@@ -152,33 +128,27 @@ async function monitorPageDeployment() {
       return;
     }
 
-    if (hasUnsavedChanges) {
-      toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui alterações pendentes no editor.</small>';
-      setTimeout(() => toast.remove(), 8000);
-      return;
-    }
-
     let countdown = 3;
     toast.className = 'toast success';
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
-        window.location.reload();
+        // Recarregamento limpo para a página principal (raiz)
+        window.location.href = window.location.pathname;
       }
     }, 1000);
 
   } catch (error) {
-    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 4000);
+    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
   }
 }
 
-// ATIVAR / DESATIVAR AUTO RELOAD
+// TOGGLE DO AUTO-RELOAD NAS CONFIGURAÇÕES
 function toggleAutoReload() {
   isAutoReloadEnabled = !isAutoReloadEnabled;
   localStorage.setItem('auto_reload', isAutoReloadEnabled ? 'true' : 'false');
@@ -303,8 +273,6 @@ window.addEventListener('load', () => {
   if (savedToken) {
     tokenInput.value = savedToken;
     autoConnect(savedToken);
-  } else {
-    showSection('login');
   }
 });
 
@@ -313,12 +281,14 @@ async function autoConnect(token) {
   try {
     github = new GitHubAPI(token);
     currentUser = await github.getUser();
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
+
     await loadRepositories();
     showToast(`Bem-vindo de volta, ${currentUser.login}!`);
   } catch (error) {
     showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
-    showSection('login');
   } finally {
     hideLoading();
   }
@@ -337,11 +307,12 @@ connectBtn.addEventListener('click', async () => {
     currentUser = await github.getUser();
 
     localStorage.setItem('gh_token', token);
+    loginHeaderTools.style.display = 'none';
+    headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
     showToast('Conectado com sucesso!');
   } catch (error) {
     showToast(error.message, 'error');
-    showSection('login');
   } finally {
     hideLoading();
   }
@@ -401,7 +372,10 @@ async function loadRepositories() {
 
   try {
     const repos = await github.getRepositories();
-    showSection('dashboard');
+    mainHeader.style.display = 'flex';
+    loginSection.style.display = 'none';
+    editorSection.style.display = 'none';
+    dashboardSection.style.display = 'block';
 
     repoList.innerHTML = '';
     repos.forEach(repo => {
@@ -458,7 +432,9 @@ async function selectRepo(repoName) {
   currentRepo = repoName;
   currentRepoTitle.innerHTML = `Repositório: <span class="repo-highlight-title">${repoName}</span>`;
 
-  showSection('editor');
+  mainHeader.style.display = 'none';
+  dashboardSection.style.display = 'none';
+  editorSection.style.display = 'block';
 
   if (monacoEditor && !isMobile) {
     setTimeout(() => monacoEditor.layout(), 100);
@@ -594,7 +570,6 @@ async function deleteFolder(folderPath, folderName) {
     await github.deleteFolder(currentUser.login, currentRepo, folderPath);
     showToast('Pasta excluída com sucesso!');
     await loadFiles(currentFolderPath);
-    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao excluir pasta: ' + error.message, 'error');
     hideLoading();
@@ -630,7 +605,6 @@ async function deleteFileByPath(filePath, sha) {
 
     showToast('Arquivo excluído com sucesso!');
     await loadFiles(currentFolderPath);
-    monitorPageDeployment();
 
   } catch (error) {
     showToast('Erro ao excluir arquivo: ' + error.message, 'error');
@@ -688,7 +662,7 @@ async function openFile(filePath) {
   }
 }
 
-// FILA ASSÍNCRONA DE SALVAMENTO
+// FILA ASSÍNCRONA DE SALVAMENTO DE ARQUIVOS
 function queueSaveRequest(fileObj, content) {
   saveQueue.push({ file: fileObj, content: content });
   
@@ -791,6 +765,7 @@ closePreviewBtn.addEventListener('click', () => {
   previewModal.style.display = 'none';
 });
 
+// CRIAÇÃO RÁPIDA DE ARQUIVO
 newFileBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
@@ -812,13 +787,13 @@ newFileBtn.addEventListener('click', async () => {
 
     showToast('Arquivo criado com sucesso!');
     await loadFiles(currentFolderPath);
-    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao criar arquivo: ' + error.message, 'error');
     hideLoading();
   }
 });
 
+// CRIAÇÃO RÁPIDA DE PASTA
 newFolderBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
@@ -840,7 +815,6 @@ newFolderBtn.addEventListener('click', async () => {
 
     showToast('Pasta criada com sucesso!');
     await loadFiles(currentFolderPath);
-    monitorPageDeployment();
   } catch (error) {
     showToast('Erro ao criar pasta: ' + error.message, 'error');
     hideLoading();
