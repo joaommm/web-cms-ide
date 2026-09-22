@@ -1,4 +1,4 @@
-let github = null; 
+let github = null;
 let currentUser = null;
 let currentRepo = null;
 let currentFile = null;
@@ -100,7 +100,7 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO LIMPO NA TELA INICIAL
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO LIMPO SEM CACHE
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
@@ -118,8 +118,8 @@ async function monitorPageDeployment() {
       toast.innerHTML = statusMsg;
     });
 
-    toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
-    await new Promise(r => setTimeout(r, 3000));
+    toast.innerHTML = '🔄 Finalizando sincronização nos servidores do GitHub...';
+    await new Promise(r => setTimeout(r, 5000));
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
@@ -133,13 +133,15 @@ async function monitorPageDeployment() {
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando e limpando cache em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
-        // Recarregamento limpo para a página principal (raiz)
-        window.location.href = window.location.pathname;
+        
+        // Recarregamento forçado adicionando timestamp para quebrar o cache do navegador
+        const cleanPath = window.location.pathname;
+        window.location.href = cleanPath + '?v=' + Date.now();
       }
     }, 1000);
 
@@ -363,7 +365,7 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
-  location.reload();
+  window.location.href = window.location.pathname;
 });
 
 async function loadRepositories() {
