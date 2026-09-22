@@ -98,7 +98,7 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO INTELIGENTE COM VERIFICAÇÃO DE PAGES ATIVO
+// MONITORAMENTO INTELIGENTE COM ATUALIZAÇÃO AUTOMÁTICA DA PÁGINA
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
@@ -107,7 +107,6 @@ async function monitorPageDeployment() {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      // Se não estiver ativo, avisa e encerra sem iniciar loop de verificação
       showToast('💾 Alterações salvas no repositório! <br><small>💡 Dica: O GitHub Pages não está ativado neste repositório para gerar o site público.</small>', 'info', 7000);
       return;
     }
@@ -123,10 +122,32 @@ async function monitorPageDeployment() {
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 3000));
 
+    // Se houver alterações pendentes no editor, não recarrega automaticamente para não perder o trabalho
+    if (hasUnsavedChanges) {
+      toast.className = 'toast success';
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui edições não salvas no editor, recarregue manualmente quando concluir.</small>';
+      setTimeout(() => toast.remove(), 10000);
+      return;
+    }
+
+    // Contagem regressiva antes da atualização automática
+    let countdown = 3;
     toast.className = 'toast success';
-    toast.innerHTML = '✨ Site publicado e atualizado com sucesso! <br><small>(Use Ctrl+F5 caso o navegador exiba a versão em cache)</small>';
-    
-    setTimeout(() => toast.remove(), 30000);
+
+    const countdownInterval = setInterval(() => {
+      if (countdown > 0) {
+        toast.innerHTML = `✨ Site publicado com sucesso! <br><small>🔄 Recarregando a aplicação para aplicar as alterações em <b>${countdown}s</b>...</small>`;
+        countdown--;
+      } else {
+        clearInterval(countdownInterval);
+        toast.innerHTML = '🔄 Recarregando agora...';
+
+        // Recarrega forçando descarte do cache via URL Timestamp
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('_v', Date.now());
+        window.location.href = currentUrl.toString();
+      }
+    }, 1000);
 
   } catch (error) {
     showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
