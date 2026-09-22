@@ -172,12 +172,12 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
-    // PÓS-BUILD: AGUARDA PROPAGAÇÃO REAL NO CDN (Especialmente para Horários de Pico)
+    // PÓS-BUILD: AGUARDA PROPAGAÇÃO REAL NO CDN (Horário de Pico)
     if (toastRef) {
       toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores do GitHub (Horário de Pico)...`;
     }
 
-    // Loop de verificação de CDN com margem de segurança extra (12 segundos)
+    // Loop de verificação de CDN com margem de segurança extra
     for (let i = 12; i > 0; i--) {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
       if (toastRef) {
@@ -208,28 +208,53 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       await new Promise(r => setTimeout(r, 1000));
     }
 
-    // CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO
+    // CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO COM OPÇÃO DE CANCELAR
     let countdown = 3;
+    let isCancelled = false;
     const isMultipleFiles = activeFilesCount > 1;
 
+    // Função para cancelar o reload via clique na notificação
+    const cancelReloadHandlerName = `cancelReload_${sessionId}`;
+    window[cancelReloadHandlerName] = () => {
+      isCancelled = true;
+      delete window[cancelReloadHandlerName];
+    };
+
+    const cancelStyle = `style="text-decoration: underline; font-weight: bold; cursor: pointer; margin-left: 8px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;"`;
+
     const countdownInterval = setInterval(() => {
+      if (isCancelled) {
+        clearInterval(countdownInterval);
+        if (toastRef) {
+          toastRef.className = 'toast info';
+          toastRef.innerHTML = `⏹️ Atualização automática cancelada. Suas alterações em <b>${fileName}</b> continuam salvas.`;
+          setTimeout(() => toastRef.remove(), 5000);
+        }
+        activeFilesCount = 0;
+        return;
+      }
+
       if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
         clearInterval(countdownInterval);
+        delete window[cancelReloadHandlerName];
         return;
       }
 
       if (countdown > 0) {
         if (toastRef) {
           toastRef.className = 'toast success';
+          const cancelBtnHTML = `<span ${cancelStyle} onclick="${cancelReloadHandlerName}()">Cancelar</span>`;
+          
           if (isMultipleFiles) {
-            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>... ${cancelBtnHTML}</small>`;
           } else {
-            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>... ${cancelBtnHTML}</small>`;
           }
         }
         countdown--;
       } else {
         clearInterval(countdownInterval);
+        delete window[cancelReloadHandlerName];
         if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
         activeFilesCount = 0;
