@@ -18,9 +18,6 @@ let isProcessingQueue = false;
 let activeDeploySession = 0; // ID global para controle de concorrência
 let activeFilesCount = 0;    // Conta quantos arquivos estão no ciclo de salvamento/deploy
 
-// CONTROLE DO TIMER DE REINICIALIZAÇÃO
-let currentCountdownInterval = null;
-
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
 
@@ -105,52 +102,31 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// VERIFICA SE EXISTE DEPLOY EM ANDAMENTO LOGO APÓS O CARREGAMENTO/RELOAD DA PÁGINA
-async function checkOngoingDeployAfterReload() {
+// CHECAGEM DE PROCESSOS EM ANDAMENTO AO CARREGAR A PÁGINA
+async function checkOngoingDeployments() {
   if (!github || !currentUser || !currentRepo) return;
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
     if (!isPagesEnabled) return;
 
-    // Dispara rastreamento em segundo plano sem travar a interface
-    let activeToast = null;
-    let checkInterval = setInterval(async () => {
-      try {
-        const builds = await github.getPagesBuilds(currentUser.login, currentRepo);
-        if (builds && builds.length > 0) {
-          const latest = builds[0];
-          if (latest.status === 'building' || latest.status === 'queued') {
-            if (!activeToast) {
-              activeToast = showToast(`⚙️ <b>GitHub Pages:</b> Um processo de publicação já está rodando em segundo plano...`, 'info', 0);
-            } else {
-              activeToast.innerHTML = `⚙️ <b>GitHub Pages:</b> Publicação em andamento (${latest.status})...`;
-            }
-          } else if (latest.status === 'built') {
-            if (activeToast) {
-              activeToast.className = 'toast success';
-              activeToast.innerHTML = `✨ <b>GitHub Pages:</b> Publicação concluída!`;
-              setTimeout(() => activeToast.remove(), 5000);
-            }
-            clearInterval(checkInterval);
-          } else if (latest.status === 'errored') {
-            if (activeToast) {
-              activeToast.className = 'toast error';
-              activeToast.innerHTML = `❌ <b>GitHub Pages:</b> Ocorreu um erro na publicação remota.`;
-              setTimeout(() => activeToast.remove(), 6000);
-            }
-            clearInterval(checkInterval);
-          }
-        } else {
-          clearInterval(checkInterval);
-        }
-      } catch (e) {
-        clearInterval(checkInterval);
-      }
-    }, 3000);
+    let toastRef = null;
 
-  } catch (e) {
-    // Silencioso se der erro na verificação inicial
+    await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
+      if (!toastRef) {
+        toastRef = showToast(`⚙️ <b>GitHub Pages</b>: ${statusMsg}`, 'info', 0);
+      } else {
+        toastRef.innerHTML = `⚙️ <b>GitHub Pages</b>: ${statusMsg}`;
+      }
+    });
+
+    if (toastRef) {
+      toastRef.className = 'toast success';
+      toastRef.innerHTML = `✨ O processo anterior do GitHub Pages foi concluído com sucesso!`;
+      setTimeout(() => toastRef.remove(), 5000);
+    }
+  } catch (error) {
+    // Caso não haja deploys ativos no momento da recarga
   }
 }
 
@@ -191,7 +167,7 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       toastRef.innerHTML = `🔄 <b>${fileName}</b>: Aguardando propagação no servidor do GitHub...`;
     }
 
-    // Espera propagação no CDN
+    // Espera propagação do CDN do GitHub para evitar cache antigo
     for (let i = 0; i < 5; i++) {
       await new Promise(r => setTimeout(r, 1000));
       if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
@@ -218,43 +194,49 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
     }
 
     // CONTAGEM REGRESSIVA COM BOTÃO DE CANCELAMENTO
-    let countdown = 3;
+    let countdown = 5;
     const isMultipleFiles = activeFilesCount > 1;
 
-    // Cancela interval anterior se existia
-    if (currentCountdownInterval) clearInterval(currentCountdownInterval);
-
-    // Função de cancelamento chamada ao clicar no botão da mensagem
-    window[`cancelReload_${sessionId}`] = () => {
-      if (currentCountdownInterval) clearInterval(currentCountdownInterval);
-      if (toastRef) {
-        toastRef.className = 'toast info';
-        toastRef.innerHTML = `🛑 Reinicialização automática cancelada para <b>${fileName}</b>.`;
-        setTimeout(() => toastRef.remove(), 4000);
-      }
-      activeFilesCount = 0;
-    };
-
-    currentCountdownInterval = setInterval(() => {
+    const countdownInterval = setInterval(() => {
       if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
-        clearInterval(currentCountdownInterval);
+        clearInterval(countdownInterval);
         return;
       }
-
-      const cancelBtnHtml = `<button onclick="window.cancelReload_${sessionId}()" style="margin-top: 6px; padding: 3px 8px; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;">✖ Cancelar Reinicialização</button>`;
 
       if (countdown > 0) {
         if (toastRef) {
           toastRef.className = 'toast success';
-          if (isMultipleFiles) {
-            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small><br>${cancelBtnHtml}`;
-          } else {
-            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small><br>${cancelBtnHtml}`;
-          }
+          const titleMsg = isMultipleFiles 
+            ? `✨ Todos os arquivos foram publicados!` 
+            : `✨ <b>${fileName}</b> foi publicado com sucesso!`;
+
+          toastRef.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div>${titleMsg}</div>
+              <div style="font-size: 13px;">🔄 Recarregando em <b>${countdown}s</b>...</div>
+              <div>
+                <button id="cancel-reload-btn-${sessionId}" style="margin-top: 4px; padding: 3px 10px; font-size: 11px; background: #dc3545; color: #fff; border: none; border-radius: 4px; cursor: pointer;">❌ Cancelar Atualização</button>
+              </div>
+            </div>
+          `;
+
+          // Adiciona ação ao botão de cancelar
+          setTimeout(() => {
+            const cancelBtn = document.getElementById(`cancel-reload-btn-${sessionId}`);
+            if (cancelBtn) {
+              cancelBtn.onclick = () => {
+                clearInterval(countdownInterval);
+                toastRef.className = 'toast info';
+                toastRef.innerHTML = `🛑 Reinicialização automática cancelada.`;
+                activeFilesCount = 0;
+                setTimeout(() => toastRef.remove(), 4000);
+              };
+            }
+          }, 50);
         }
         countdown--;
       } else {
-        clearInterval(currentCountdownInterval);
+        clearInterval(countdownInterval);
         if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
         activeFilesCount = 0;
@@ -567,9 +549,9 @@ async function selectRepo(repoName) {
 
   currentFolderPath = '';
   await loadFiles(currentFolderPath);
-  
-  // Checa se já havia algum deploy em andamento no repositório selecionado
-  checkOngoingDeployAfterReload();
+
+  // Checa se já havia algum deploy rodando no GitHub para este repositório
+  checkOngoingDeployments();
 }
 
 toggleDeleteModeBtn.addEventListener('click', () => {
