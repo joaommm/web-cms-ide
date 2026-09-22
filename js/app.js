@@ -1,4 +1,4 @@
-let github = null; 
+let github = null;
 let currentUser = null;
 let currentRepo = null;
 let currentFile = null;
@@ -12,10 +12,11 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA E SESSÕES INDEPENDENTES DE DEPLOY
+// FILA ASSÍNCRONA E CONTROLE DE DEPLOY
 const saveQueue = [];
 let isProcessingQueue = false;
-let activeDeploySession = 0; // ID da última sessão global iniciada
+let activeDeploySession = 0; // ID global para controle de concorrência
+let activeFilesCount = 0;    // Conta quantos arquivos estão no ciclo de salvamento/deploy
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -114,6 +115,7 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
         toastRef.innerHTML = `💾 Alteração em <b>${fileName}</b> salva no repositório!`;
         setTimeout(() => toastRef.remove(), 4000);
       }
+      activeFilesCount = Math.max(0, activeFilesCount - 1);
       return;
     }
 
@@ -121,8 +123,8 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando publicação no GitHub Pages...`;
     }
 
+    // Acompanha a API do GitHub Pages
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      // Se há um novo arquivo na fila ou sendo enviado, sinaliza a pausa/espera no aviso deste arquivo
       if (sessionId !== activeDeploySession || saveQueue.length > 0) {
         if (toastRef) {
           const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'outro arquivo';
@@ -133,17 +135,29 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
-    // Se a reinicialização automática estiver DESATIVADA
+    if (toastRef) {
+      toastRef.innerHTML = `🔄 <b>${fileName}</b>: Aguardando propagação no servidor do GitHub...`;
+    }
+
+    // Espera propagação do CDN do GitHub para evitar cache antigo na atualização manual
+    for (let i = 0; i < 5; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
+    }
+
+    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER DESATIVADA
     if (!isAutoReloadEnabled) {
       if (toastRef) {
         toastRef.className = 'toast success';
-        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado com sucesso!`;
-        setTimeout(() => toastRef.remove(), 5000);
+        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado no servidor! Pronto para atualização manual.`;
+        setTimeout(() => toastRef.remove(), 7000);
       }
+      activeFilesCount = Math.max(0, activeFilesCount - 1);
       return;
     }
 
-    // Se outro arquivo entrou em processamento/fila, aguarda ele finalizar antes do reload
+    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER ATIVADA
+    // Aguarda outros arquivos da fila terminarem para reiniciar tudo de uma só vez
     while (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
       if (toastRef) {
         const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'novo processo';
@@ -152,21 +166,11 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       await new Promise(r => setTimeout(r, 1000));
     }
 
-    if (toastRef) {
-      toastRef.className = 'toast success';
-      toastRef.innerHTML = `🔄 <b>${fileName}</b>: Finalizando sincronização nos servidores...`;
-    }
-
-    // Pequena pausa de propagação no CDN
-    for (let i = 0; i < 3; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) return;
-    }
-
-    // INÍCIO DA CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO
+    // MONTA A MENSAGEM: ESPECÍFICA PARA 1 ARQUIVO OU PARA MÚLTIPLOS
     let countdown = 3;
+    const isMultipleFiles = activeFilesCount > 1;
+
     const countdownInterval = setInterval(() => {
-      // Se outro arquivo começou a ser editado/salvo no meio da contagem, pausa novamente
       if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
         clearInterval(countdownInterval);
         return;
@@ -174,14 +178,20 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
 
       if (countdown > 0) {
         if (toastRef) {
-          toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando em <b>${countdown}s</b> por conta de <b>${fileName}</b>...</small>`;
+          toastRef.className = 'toast success';
+          if (isMultipleFiles) {
+            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          } else {
+            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          }
         }
         countdown--;
       } else {
         clearInterval(countdownInterval);
         if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
-        // RECARREGA COM BYPASS DE CACHE
+        activeFilesCount = 0;
+        // Recarrega ignorando o cache do navegador
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
@@ -193,6 +203,7 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       toastRef.innerHTML = `💾 <b>${fileName}</b> salvo no repositório!`;
       setTimeout(() => toastRef.remove(), 4000);
     }
+    activeFilesCount = Math.max(0, activeFilesCount - 1);
   }
 }
 
@@ -710,13 +721,13 @@ async function openFile(filePath) {
   }
 }
 
-// ENFILEIRAMENTO E PROCESSAMENTO INDIVIDUAL DE SALVAMENTO
+// ENFILEIRAMENTO E PROCESSAMENTO INDIVIDUAL
 function queueSaveRequest(fileObj, content) {
-  activeDeploySession++; // Nova sessão global
-  const thisSessionId = activeDeploySession;
+  activeDeploySession++;
+  activeFilesCount++;
 
-  // Cria um aviso permanente individual para ESTE arquivo específico
-  const toastRef = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila de envio...`, 'info', 0);
+  const thisSessionId = activeDeploySession;
+  const toastRef = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila...`, 'info', 0);
 
   saveQueue.push({
     file: fileObj,
@@ -762,17 +773,14 @@ async function processSaveQueue() {
       toastRef.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
       setTimeout(() => toastRef.remove(), 6000);
     }
+    activeFilesCount = Math.max(0, activeFilesCount - 1);
   } finally {
     saveQueue.shift();
     isProcessingQueue = false;
 
-    // Atualiza a lista de arquivos na interface
     loadFiles(currentFolderPath);
-
-    // Inicia o monitoramento de publicação para ESTE arquivo específico
     monitorPageDeploymentForFile(file.name, sessionId, toastRef);
 
-    // Se houver mais arquivos na fila, continua o envio do próximo
     if (saveQueue.length > 0) {
       processSaveQueue();
     }
