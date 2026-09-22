@@ -121,7 +121,6 @@ async function checkOngoingDeployOnLoad() {
     const savedState = JSON.parse(savedStateStr);
     if (savedState.repo !== currentRepo) return;
 
-    // Se a sessão for de menos de 10 minutos atrás, reativa o monitoramento
     if (Date.now() - savedState.timestamp < 600000) {
       const toastRef = showToast(`🔍 Detectado processo anterior em <b>${savedState.fileName}</b>. Verificando status no GitHub...`, 'info', 0);
       activeFilesCount = 1;
@@ -160,7 +159,6 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando fila de publicação do GitHub Pages...`;
     }
 
-    // Acompanha o Build na API do GitHub
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) {
         if (toastRef) {
@@ -172,12 +170,10 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
-    // PÓS-BUILD: AGUARDA PROPAGAÇÃO REAL NO CDN (Horário de Pico)
     if (toastRef) {
       toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores do GitHub (Horário de Pico)...`;
     }
 
-    // Loop de verificação de CDN com margem de segurança extra
     for (let i = 12; i > 0; i--) {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
       if (toastRef) {
@@ -188,7 +184,6 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
 
     clearDeployState();
 
-    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER DESATIVADA
     if (!isAutoReloadEnabled) {
       if (toastRef) {
         toastRef.className = 'toast success';
@@ -199,7 +194,6 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       return;
     }
 
-    // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER ATIVADA
     while (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
       if (toastRef) {
         const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'novo processo';
@@ -208,42 +202,40 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       await new Promise(r => setTimeout(r, 1000));
     }
 
-    // CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO COM OPÇÃO DE CANCELAR
+    // CONTAGEM REGRESSIVA E BOTÃO DE CANCELAMENTO
     let countdown = 3;
-    let isCancelled = false;
+    let reloadCanceled = false;
     const isMultipleFiles = activeFilesCount > 1;
 
-    // Função para cancelar o reload via clique na notificação
-    const cancelReloadHandlerName = `cancelReload_${sessionId}`;
-    window[cancelReloadHandlerName] = () => {
-      isCancelled = true;
-      delete window[cancelReloadHandlerName];
+    // Criar função global temporária para tratar o clique no botão [Cancelar]
+    const cancelKey = `cancelReload_${sessionId}`;
+    window[cancelKey] = function() {
+      reloadCanceled = true;
+      delete window[cancelKey];
+      if (toastRef) {
+        toastRef.className = 'toast success';
+        toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🚫 Atualização da página cancelada.</small>`;
+        setTimeout(() => toastRef.remove(), 4000);
+      }
+      activeFilesCount = Math.max(0, activeFilesCount - 1);
     };
 
-    const cancelStyle = `style="text-decoration: underline; font-weight: bold; cursor: pointer; margin-left: 8px; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;"`;
-
     const countdownInterval = setInterval(() => {
-      if (isCancelled) {
+      if (reloadCanceled) {
         clearInterval(countdownInterval);
-        if (toastRef) {
-          toastRef.className = 'toast info';
-          toastRef.innerHTML = `⏹️ Atualização automática cancelada. Suas alterações em <b>${fileName}</b> continuam salvas.`;
-          setTimeout(() => toastRef.remove(), 5000);
-        }
-        activeFilesCount = 0;
         return;
       }
 
       if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
         clearInterval(countdownInterval);
-        delete window[cancelReloadHandlerName];
+        delete window[cancelKey];
         return;
       }
 
       if (countdown > 0) {
         if (toastRef) {
           toastRef.className = 'toast success';
-          const cancelBtnHTML = `<span ${cancelStyle} onclick="${cancelReloadHandlerName}()">Cancelar</span>`;
+          const cancelBtnHTML = `<button onclick="window.${cancelKey}()" style="margin-left: 8px; padding: 2px 8px; font-size: 11px; border: 1px solid rgba(255,255,255,0.6); background: rgba(0,0,0,0.25); color: #fff; border-radius: 4px; cursor: pointer;">Cancelar</button>`;
           
           if (isMultipleFiles) {
             toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>... ${cancelBtnHTML}</small>`;
@@ -254,7 +246,7 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
         countdown--;
       } else {
         clearInterval(countdownInterval);
-        delete window[cancelReloadHandlerName];
+        delete window[cancelKey];
         if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
         activeFilesCount = 0;
@@ -570,7 +562,6 @@ async function selectRepo(repoName) {
   currentFolderPath = '';
   await loadFiles(currentFolderPath);
   
-  // Checa se existia algum processo ativo do repositório ao carregar
   checkOngoingDeployOnLoad();
 }
 
@@ -792,7 +783,6 @@ async function openFile(filePath) {
   }
 }
 
-// ENFILEIRAMENTO E PROCESSAMENTO INDIVIDUAL
 function queueSaveRequest(fileObj, content) {
   activeDeploySession++;
   activeFilesCount++;
@@ -904,7 +894,6 @@ closePreviewBtn.addEventListener('click', () => {
   previewModal.style.display = 'none';
 });
 
-// CRIAÇÃO RÁPIDA DE ARQUIVO
 newFileBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
@@ -932,7 +921,6 @@ newFileBtn.addEventListener('click', async () => {
   }
 });
 
-// CRIAÇÃO RÁPIDA DE PASTA
 newFolderBtn.addEventListener('click', async () => {
   if (!checkUnsavedChanges()) return;
 
