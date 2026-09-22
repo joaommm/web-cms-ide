@@ -13,7 +13,7 @@ let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
 // FILA ASSÍNCRONA E CONTROLE DE DEPLOY
-const saveQueue = [];
+let saveQueue = [];
 let isProcessingQueue = false;
 let activeDeploySession = 0;
 let activeFilesCount = 0;
@@ -156,28 +156,38 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
     }
 
     if (toastRef) {
+      toastRef.className = 'toast info';
       toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando fila de publicação do GitHub Pages...`;
     }
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) {
         if (toastRef) {
-          const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'outro arquivo';
-          toastRef.innerHTML = `⏸️ <b>${fileName}</b> aguardando conclusão de <b>${nextFile}</b>...`;
+          const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'versão mais recente';
+          toastRef.innerHTML = `⏸️ <b>${fileName}</b> interrompido: assumindo <b>${nextFile}</b>...`;
         }
         return;
       }
       if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
-    if (toastRef) {
-      toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores do GitHub (Horário de Pico)...`;
+    // Se houve nova alteração durante a espera do build, cancela a sincronização desta sessão antiga
+    if (sessionId !== activeDeploySession) {
+      if (toastRef && toastRef.parentNode) toastRef.remove();
+      return;
     }
 
-    for (let i = 12; i > 0; i--) {
-      if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
+    if (toastRef) {
+      toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores...`;
+    }
+
+    for (let i = 9; i > 0; i--) {
+      if (sessionId !== activeDeploySession || saveQueue.length > 0) {
+        if (toastRef && toastRef.parentNode) toastRef.remove();
+        return;
+      }
       if (toastRef) {
-        toastRef.innerHTML = `⏳ <b>${fileName}</b>: Sincronizando com os servidores globais (${i}s)...`;
+        toastRef.innerHTML = `⏳ <b>${fileName}</b>: Sincronizando alterações (${i}s)...`;
       }
       await new Promise(r => setTimeout(r, 1000));
     }
@@ -195,58 +205,59 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
     }
 
     while (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
-      if (toastRef) {
-        const nextFile = saveQueue.length > 0 ? saveQueue[0].file.name : 'novo processo';
-        toastRef.innerHTML = `⏸️ <b>${fileName}</b> publicado. Pausado aguardando término de <b>${nextFile}</b> para reiniciar...`;
+      if (sessionId !== activeDeploySession) {
+        if (toastRef && toastRef.parentNode) toastRef.remove();
+        return;
       }
       await new Promise(r => setTimeout(r, 1000));
     }
 
-    // CONTAGEM REGRESSIVA E BOTÃO DE CANCELAMENTO
-    let countdown = 3;
+    // CONTAGEM REGRESSIVA SEGURA E CANCELAMENTO VIA LISTENER DOM
+    let countdown = 5;
     let reloadCanceled = false;
     const isMultipleFiles = activeFilesCount > 1;
 
-    // Criar função global temporária para tratar o clique no botão [Cancelar]
-    const cancelKey = `cancelReload_${sessionId}`;
-    window[cancelKey] = function() {
-      reloadCanceled = true;
-      delete window[cancelKey];
-      if (toastRef) {
-        toastRef.className = 'toast success';
-        toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🚫 Atualização da página cancelada.</small>`;
-        setTimeout(() => toastRef.remove(), 4000);
-      }
-      activeFilesCount = Math.max(0, activeFilesCount - 1);
-    };
-
     const countdownInterval = setInterval(() => {
-      if (reloadCanceled) {
+      if (reloadCanceled || sessionId !== activeDeploySession) {
         clearInterval(countdownInterval);
-        return;
-      }
-
-      if (sessionId !== activeDeploySession || saveQueue.length > 0 || isProcessingQueue) {
-        clearInterval(countdownInterval);
-        delete window[cancelKey];
+        if (sessionId !== activeDeploySession && toastRef && toastRef.parentNode) {
+          toastRef.remove();
+        }
         return;
       }
 
       if (countdown > 0) {
         if (toastRef) {
           toastRef.className = 'toast success';
-          const cancelBtnHTML = `<button onclick="window.${cancelKey}()" style="margin-left: 8px; padding: 2px 8px; font-size: 11px; border: 1px solid rgba(255,255,255,0.6); background: rgba(0,0,0,0.25); color: #fff; border-radius: 4px; cursor: pointer;">Cancelar</button>`;
           
-          if (isMultipleFiles) {
-            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>... ${cancelBtnHTML}</small>`;
-          } else {
-            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>... ${cancelBtnHTML}</small>`;
+          const textPart = isMultipleFiles 
+            ? `✨ Todos os arquivos foram publicados!` 
+            : `✨ <b>${fileName}</b> foi publicado com sucesso!`;
+
+          toastRef.innerHTML = `
+            <div>
+              ${textPart}<br>
+              <small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>
+            </div>
+            <button class="toast-cancel-btn" style="margin-top:6px; padding:3px 10px; font-size:11px; font-weight:bold; border:1px solid rgba(255,255,255,0.7); background:rgba(0,0,0,0.3); color:#fff; border-radius:4px; cursor:pointer;">Cancelar Atualização</button>
+          `;
+
+          const cancelBtn = toastRef.querySelector('.toast-cancel-btn');
+          if (cancelBtn) {
+            cancelBtn.onclick = (e) => {
+              e.stopPropagation();
+              reloadCanceled = true;
+              clearInterval(countdownInterval);
+              toastRef.className = 'toast success';
+              toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado! <br><small>🚫 Atualização automática desta alteração foi cancelada.</small>`;
+              activeFilesCount = Math.max(0, activeFilesCount - 1);
+              setTimeout(() => toastRef.remove(), 5000);
+            };
           }
         }
         countdown--;
       } else {
         clearInterval(countdownInterval);
-        delete window[cancelKey];
         if (toastRef) toastRef.innerHTML = '🔄 Recarregando a página agora...';
         
         activeFilesCount = 0;
@@ -258,11 +269,90 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
   } catch (error) {
     clearDeployState();
     if (toastRef) {
-      toastRef.className = 'toast success';
-      toastRef.innerHTML = `💾 <b>${fileName}</b> salvo no repositório!`;
-      setTimeout(() => toastRef.remove(), 4000);
+      toastRef.className = 'toast error';
+      toastRef.innerHTML = `⚠️ Instabilidade ao monitorar GitHub: <b>${error.message || 'Erro de conexão'}</b>. A alteração mais recente foi salva no repositório!`;
+      setTimeout(() => toastRef.remove(), 8000);
     }
     activeFilesCount = Math.max(0, activeFilesCount - 1);
+  }
+}
+
+// GERENCIADOR DE FILA COM LÓGICA DE OVERRIDE (SUBSTITUIÇÃO DE VERSÃO)
+function queueSaveRequest(fileObj, content) {
+  activeDeploySession++;
+  
+  // Verifica se o mesmo arquivo já está na fila aguardando processamento
+  const existingIndex = saveQueue.findIndex(item => item.file.path === fileObj.path);
+
+  if (existingIndex !== -1) {
+    // Remove a versão antiga da fila e apaga a notificação anterior
+    const oldItem = saveQueue.splice(existingIndex, 1)[0];
+    if (oldItem.toastRef && oldItem.toastRef.parentNode) {
+      oldItem.toastRef.remove();
+    }
+  } else {
+    activeFilesCount++;
+  }
+
+  const thisSessionId = activeDeploySession;
+  const toastRef = showToast(`⏳ <b>${fileObj.name}</b>: Versão mais recente adicionada à fila...`, 'info', 0);
+
+  saveQueue.push({
+    file: fileObj,
+    content: content,
+    sessionId: thisSessionId,
+    toastRef: toastRef
+  });
+
+  processSaveQueue();
+}
+
+async function processSaveQueue() {
+  if (isProcessingQueue || saveQueue.length === 0) return;
+
+  isProcessingQueue = true;
+  const currentItem = saveQueue[0];
+  const { file, content, sessionId, toastRef } = currentItem;
+
+  if (toastRef) {
+    toastRef.innerHTML = `⚙️ Enviando a versão mais recente de <b>${file.name}</b> ao GitHub...`;
+  }
+
+  try {
+    // Sempre busca o SHA atual do arquivo direto no servidor antes de atualizar
+    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
+    
+    const result = await github.updateFile(
+      currentUser.login,
+      currentRepo,
+      file.path,
+      content,
+      latestFileData.sha
+    );
+
+    if (currentFile && currentFile.path === file.path) {
+      currentFile.sha = result.content.sha;
+      originalFileContent = content;
+      updateSaveButtonState(false);
+    }
+
+  } catch (error) {
+    if (toastRef) {
+      toastRef.className = 'toast error';
+      toastRef.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
+      setTimeout(() => toastRef.remove(), 6000);
+    }
+    activeFilesCount = Math.max(0, activeFilesCount - 1);
+  } finally {
+    saveQueue.shift();
+    isProcessingQueue = false;
+
+    loadFiles(currentFolderPath);
+    monitorPageDeploymentForFile(file.name, sessionId, toastRef);
+
+    if (saveQueue.length > 0) {
+      processSaveQueue();
+    }
   }
 }
 
@@ -780,71 +870,6 @@ async function openFile(filePath) {
     showToast('Erro ao abrir arquivo: ' + error.message, 'error');
   } finally {
     hideLoading();
-  }
-}
-
-function queueSaveRequest(fileObj, content) {
-  activeDeploySession++;
-  activeFilesCount++;
-
-  const thisSessionId = activeDeploySession;
-  const toastRef = showToast(`⏳ <b>${fileObj.name}</b> adicionado à fila...`, 'info', 0);
-
-  saveQueue.push({
-    file: fileObj,
-    content: content,
-    sessionId: thisSessionId,
-    toastRef: toastRef
-  });
-
-  processSaveQueue();
-}
-
-async function processSaveQueue() {
-  if (isProcessingQueue || saveQueue.length === 0) return;
-
-  isProcessingQueue = true;
-  const currentItem = saveQueue[0];
-  const { file, content, sessionId, toastRef } = currentItem;
-
-  if (toastRef) {
-    toastRef.innerHTML = `⚙️ Enviando alterações de <b>${file.name}</b> para o GitHub...`;
-  }
-
-  try {
-    const latestFileData = await github.getFile(currentUser.login, currentRepo, file.path);
-    
-    const result = await github.updateFile(
-      currentUser.login,
-      currentRepo,
-      file.path,
-      content,
-      latestFileData.sha
-    );
-
-    if (currentFile && currentFile.path === file.path) {
-      currentFile.sha = result.content.sha;
-      originalFileContent = content;
-      updateSaveButtonState(false);
-    }
-
-  } catch (error) {
-    if (toastRef) {
-      toastRef.className = 'toast error';
-      toastRef.innerHTML = `❌ Erro ao salvar <b>${file.name}</b>: ${error.message}`;
-      setTimeout(() => toastRef.remove(), 6000);
-    }
-    activeFilesCount = Math.max(0, activeFilesCount - 1);
-  } finally {
-    saveQueue.shift();
-    isProcessingQueue = false;
-
-    loadFiles(currentFolderPath);
-    monitorPageDeploymentForFile(file.name, sessionId, toastRef);
-
-    if (saveQueue.length > 0) {
-      processSaveQueue();
-    }
   }
 }
 
