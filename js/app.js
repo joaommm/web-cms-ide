@@ -100,13 +100,13 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY COM TRATAMENTO DE MÚLTIPLAS REQUISIÇÕES
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO COM VERIFICAÇÃO DE FILA
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
-  // Se ainda houver itens na fila aguardando processamento, interrompe o reload automático deste ciclo
+  // SE AINDA EXISTEM ARQUIVOS PENDENTES NA FILA, ADIA O RELOAD
   if (saveQueue.length > 0) {
-    showToast('⌛ Alteração salva! Aguardando o restante das alterações na fila para atualizar...', 'info', 4000);
+    showToast(`⏳ Salvo com sucesso! Aguardando a conclusão dos demais arquivos na fila para reiniciar...`, 'info', 4000);
     return;
   }
 
@@ -118,29 +118,31 @@ async function monitorPageDeployment() {
       return;
     }
 
-    const toast = showToast('🚀 Alterações enviadas. Verificando publicação no GitHub Pages...', 'info', 0);
+    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      // Checa se novos arquivos foram adicionados à fila durante a verificação
+      // SE NOVOS ARQUIVOS ENTRARAM NA FILA DURANTE A VERIFICAÇÃO
       if (saveQueue.length > 0) {
-        toast.className = 'toast info';
-        toast.innerHTML = '⌛ Novas alterações detectadas! Aguardando a fila terminar...';
+        toast.innerHTML = '⏸️ Novas alterações pendentes na fila. Aguardando conclusão...';
         return;
       }
       toast.innerHTML = statusMsg;
     });
 
-    // Segunda checagem de segurança antes de pausar a sincronização
+    // SE NOVOS ARQUIVOS FORAM ADICIONADOS NA FILA ENQUANTO ROLAVA O MONITORAMENTO
     if (saveQueue.length > 0) {
       toast.remove();
+      showToast('⏳ Aguardando conclusão do salvamento dos novos arquivos para reiniciar...', 'info', 4000);
       return;
     }
 
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 5000));
 
+    // VERIFICAÇÃO FINAL ANTES DE DISPARAR O CONTADOR
     if (saveQueue.length > 0) {
       toast.remove();
+      showToast('⏳ Aguardando conclusão do salvamento dos novos arquivos para reiniciar...', 'info', 4000);
       return;
     }
 
@@ -155,10 +157,11 @@ async function monitorPageDeployment() {
     toast.className = 'toast success';
 
     const countdownInterval = setInterval(() => {
-      // Cancela o countdown se o usuário salvou outro arquivo enquanto ele contava
+      // CANCELA O RELOAD CASO UM NOVO ARQUIVO SEJA ADICIONADO NO MEIO DA CONTAGEM
       if (saveQueue.length > 0) {
         clearInterval(countdownInterval);
         toast.remove();
+        showToast('⏳ Nova requisição identificada! Reinicialização pausada até concluir a fila.', 'info', 4000);
         return;
       }
 
@@ -169,7 +172,7 @@ async function monitorPageDeployment() {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
         
-        // BYPASS DE CACHE COM TIMESTAMP
+        // FORÇAR BYPASS DE CACHE COM TIMESTAMP NA URL
         const cleanPath = window.location.pathname;
         window.location.href = `${cleanPath}?_nocache=${Date.now()}`;
       }
@@ -733,7 +736,13 @@ async function processSaveQueue() {
     }
 
     queueStatusToast.remove();
-    showToast(`✅ Arquivo <b>${file.name}</b> salvo com sucesso!`, 'success', 3000);
+    
+    // NOTIFICAÇÃO DE SUCESSO INDIVIDUAL
+    if (saveQueue.length > 1) {
+      showToast(`✅ Arquivo <b>${file.name}</b> salvo! Aguardando demais arquivos da fila...`, 'info', 3000);
+    } else {
+      showToast(`✅ Arquivo <b>${file.name}</b> salvo com sucesso!`, 'success', 3000);
+    }
     
   } catch (error) {
     queueStatusToast.remove();
