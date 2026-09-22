@@ -9,6 +9,7 @@ let monacoEditor = null;
 let isExpanded = false;
 let isDeleteMode = false;
 let isDarkMode = false;
+let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
 // FILA ASSÍNCRONA DE REQUISIÇÕES (QUEUE)
@@ -43,6 +44,7 @@ const settingsWrapper = document.getElementById('settings-wrapper');
 const settingsToggleBtn = document.getElementById('settings-toggle-btn');
 const settingsPopover = document.getElementById('settings-popover');
 const popoverThemeBtn = document.getElementById('popover-theme-btn');
+const popoverAutoReloadBtn = document.getElementById('popover-autoreload-btn');
 
 const logoutWrapper = document.getElementById('logout-wrapper');
 const logoutPopover = document.getElementById('logout-popover');
@@ -122,10 +124,18 @@ async function monitorPageDeployment() {
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
     await new Promise(r => setTimeout(r, 3000));
 
-    // Se houver alterações pendentes no editor, não recarrega automaticamente para não perder o trabalho
+    // Se o usuário desativou a atualização automática nas configurações:
+    if (!isAutoReloadEnabled) {
+      toast.className = 'toast success';
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Atualização automática desativada nas configurações.</small>';
+      setTimeout(() => toast.remove(), 6000);
+      return;
+    }
+
+    // Se houver alterações pendentes no editor, não recarrega automaticamente
     if (hasUnsavedChanges) {
       toast.className = 'toast success';
-      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui edições não salvas no editor, recarregue manualmente quando concluir.</small>';
+      toast.innerHTML = '✨ Site publicado com sucesso! <br><small>Você possui edições não salvas no editor. Atualize manualmente quando concluir.</small>';
       setTimeout(() => toast.remove(), 10000);
       return;
     }
@@ -136,11 +146,18 @@ async function monitorPageDeployment() {
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Site publicado com sucesso! <br><small>🔄 Recarregando a aplicação para aplicar as alterações em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado com sucesso! <br><small>🔄 Recarregando para aplicar as alterações em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
         toast.innerHTML = '🔄 Recarregando agora...';
+
+        // SALVA O ESTADO ATUAL ANTES DO RELOAD PARA VOLTAR EXATAMENTE AO MESMO LUGAR
+        sessionStorage.setItem('restore_repo', currentRepo);
+        sessionStorage.setItem('restore_folder', currentFolderPath || '');
+        if (currentFile) {
+          sessionStorage.setItem('restore_file', currentFile.path);
+        }
 
         // Recarrega forçando descarte do cache via URL Timestamp
         const currentUrl = new URL(window.location.href);
@@ -151,6 +168,34 @@ async function monitorPageDeployment() {
 
   } catch (error) {
     showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
+  }
+}
+
+// RESTAURAR O ESTADO SALVO APÓS O AUTO-RELOAD
+async function checkAndRestoreState() {
+  const restoreRepo = sessionStorage.getItem('restore_repo');
+  if (!restoreRepo) return;
+
+  const restoreFolder = sessionStorage.getItem('restore_folder') || '';
+  const restoreFile = sessionStorage.getItem('restore_file');
+
+  // Limpa o sessionStorage para não re-executar numa atualização manual do usuário
+  sessionStorage.removeItem('restore_repo');
+  sessionStorage.removeItem('restore_folder');
+  sessionStorage.removeItem('restore_file');
+
+  try {
+    await selectRepo(restoreRepo);
+    if (restoreFolder) {
+      currentFolderPath = restoreFolder;
+      await loadFiles(currentFolderPath);
+    }
+    if (restoreFile) {
+      await openFile(restoreFile);
+    }
+    showToast('🔄 Aplicação atualizada e seu estado foi restaurado com sucesso!', 'info', 4000);
+  } catch (err) {
+    console.error('Erro ao restaurar estado:', err);
   }
 }
 
@@ -170,8 +215,25 @@ function toggleTheme() {
   }
 }
 
+// ATIVAR/DESATIVAR AUTO RELOAD
+function toggleAutoReload() {
+  isAutoReloadEnabled = !isAutoReloadEnabled;
+  if (isAutoReloadEnabled) {
+    popoverAutoReloadBtn.textContent = '🔄 Ativado';
+    popoverAutoReloadBtn.style.opacity = '1';
+    localStorage.setItem('auto_reload', 'enabled');
+    showToast('Atualização automática ATIVADA.');
+  } else {
+    popoverAutoReloadBtn.textContent = '⏸️ Desativado';
+    popoverAutoReloadBtn.style.opacity = '0.7';
+    localStorage.setItem('auto_reload', 'disabled');
+    showToast('Atualização automática DESATIVADA.');
+  }
+}
+
 loginThemeBtn.addEventListener('click', toggleTheme);
 popoverThemeBtn.addEventListener('click', toggleTheme);
+popoverAutoReloadBtn.addEventListener('click', toggleAutoReload);
 
 function setActionButtonVisibility(button, visible) {
   if (visible) {
@@ -253,6 +315,12 @@ window.addEventListener('load', () => {
     toggleTheme();
   }
 
+  const savedAutoReload = localStorage.getItem('auto_reload');
+  if (savedAutoReload === 'disabled') {
+    isAutoReloadEnabled = true;
+    toggleAutoReload();
+  }
+
   const savedToken = localStorage.getItem('gh_token');
   if (savedToken) {
     tokenInput.value = savedToken;
@@ -268,7 +336,10 @@ async function autoConnect(token) {
     loginHeaderTools.style.display = 'none';
     headerActionsWrapper.style.display = 'flex';
     await loadRepositories();
-    showToast(`Bem-vindo de volta, ${currentUser.login}!`);
+
+    // TENTA RESTAURAR O ESTADO CASO SEJA UM AUTO-RELOAD
+    await checkAndRestoreState();
+
   } catch (error) {
     showToast('Sessão expirada ou token inválido.', 'error');
     localStorage.removeItem('gh_token');
