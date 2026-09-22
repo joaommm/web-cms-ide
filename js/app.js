@@ -12,10 +12,9 @@ let isDarkMode = false;
 let isAutoReloadEnabled = true;
 const isMobile = window.innerWidth <= 768;
 
-// FILA ASSÍNCRONA DE REQUISIÇÕES (QUEUE) E DEBOUNCE DE RECARREGAMENTO
+// FILA ASSÍNCRONA DE REQUISIÇÕES (QUEUE)
 const saveQueue = [];
 let isProcessingQueue = false;
-let deployMonitorTimeout = null;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -101,7 +100,7 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// MONITORAMENTO DO DEPLOY COM TRATAMENTO PARA MÚLTIPLAS ALTERAÇÕES
+// MONITORAMENTO DO DEPLOY DO GITHUB PAGES E RECARREGAMENTO COM BYPASS DE CACHE
 async function monitorPageDeployment() {
   if (!github || !currentUser || !currentRepo) return;
 
@@ -109,23 +108,23 @@ async function monitorPageDeployment() {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
 
     if (!isPagesEnabled) {
-      showToast('💾 Todas as alterações foram salvas!', 'info', 4000);
+      showToast('💾 Alterações salvas no repositório!', 'info', 5000);
       return;
     }
 
-    const toast = showToast('🚀 Alterações enviadas. Verificando publicação no GitHub Pages...', 'info', 0);
+    const toast = showToast('🚀 Alteração enviada. Verificando publicação no GitHub Pages...', 'info', 0);
 
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       toast.innerHTML = statusMsg;
     });
 
     toast.innerHTML = '🔄 Finalizando sincronização nos servidores...';
-    // Tolerância de sincronização do CDN do GitHub
+    // Espera 5 segundos para garantir que o CDN propagou totalmente a alteração
     await new Promise(r => setTimeout(r, 5000));
 
     if (!isAutoReloadEnabled) {
       toast.className = 'toast success';
-      toast.innerHTML = '✨ Múltiplas alterações publicadas com sucesso!';
+      toast.innerHTML = '✨ Site publicado com sucesso!';
       setTimeout(() => toast.remove(), 6000);
       return;
     }
@@ -135,7 +134,7 @@ async function monitorPageDeployment() {
 
     const countdownInterval = setInterval(() => {
       if (countdown > 0) {
-        toast.innerHTML = `✨ Alterações publicadas! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
+        toast.innerHTML = `✨ Site publicado! <br><small>🔄 Recarregando a aplicação em <b>${countdown}s</b>...</small>`;
         countdown--;
       } else {
         clearInterval(countdownInterval);
@@ -148,7 +147,7 @@ async function monitorPageDeployment() {
     }, 1000);
 
   } catch (error) {
-    showToast('💾 Alterações gravadas no repositório com sucesso!', 'success', 5000);
+    showToast('💾 Alteração gravada no repositório com sucesso!', 'success', 5000);
   }
 }
 
@@ -668,12 +667,6 @@ async function openFile(filePath) {
 
 // FILA ASSÍNCRONA DE SALVAMENTO DE ARQUIVOS
 function queueSaveRequest(fileObj, content) {
-  // Se houver um monitoramento agendado para rodar, cancela pois há novas edições chegando
-  if (deployMonitorTimeout) {
-    clearTimeout(deployMonitorTimeout);
-    deployMonitorTimeout = null;
-  }
-
   saveQueue.push({ file: fileObj, content: content });
   
   if (saveQueue.length > 1) {
@@ -721,14 +714,13 @@ async function processSaveQueue() {
     isProcessingQueue = false;
 
     if (saveQueue.length > 0) {
+      // Notifica o usuário de que ainda há envios pendentes antes do reload automático
+      showToast(`⏳ Aguardando envio de mais ${saveQueue.length} arquivo(s) para sincronizar o site...`, 'info', 3000);
       processSaveQueue();
     } else {
+      // Dispara o monitoramento e recarregamento apenas quando a fila estiver totalmente zerada
       await loadFiles(currentFolderPath);
-
-      // DEBOUNCE DO MONITORAMENTO: Dispara o monitoramento após 1.5s de inatividade na fila
-      deployMonitorTimeout = setTimeout(() => {
-        monitorPageDeployment();
-      }, 1500);
+      monitorPageDeployment();
     }
   }
 }
