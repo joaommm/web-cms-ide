@@ -15,8 +15,8 @@ const isMobile = window.innerWidth <= 768;
 // FILA ASSÍNCRONA E CONTROLE DE DEPLOY
 const saveQueue = [];
 let isProcessingQueue = false;
-let activeDeploySession = 0; // ID global para controle de concorrência
-let activeFilesCount = 0;    // Conta quantos arquivos estão no ciclo de salvamento/deploy
+let activeDeploySession = 0;
+let activeFilesCount = 0;
 
 const tokenInput = document.getElementById('token-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -102,37 +102,45 @@ function showToast(message, type = 'success', duration = 3500) {
   return toast;
 }
 
-// CHECAGEM DE PROCESSOS EM ANDAMENTO AO CARREGAR A PÁGINA
-async function checkOngoingDeployments() {
-  if (!github || !currentUser || !currentRepo) return;
+// SALVA E LIMPA O ESTADO DO DEPLOY NO NAVEGADOR
+function saveDeployState(repo, fileName, status) {
+  const state = { repo, fileName, status, timestamp: Date.now() };
+  localStorage.setItem('active_github_deploy', JSON.stringify(state));
+}
+
+function clearDeployState() {
+  localStorage.removeItem('active_github_deploy');
+}
+
+// CHECA SE HÁ DEPLOY ATIVO APÓS ATUALIZAR A PÁGINA
+async function checkOngoingDeployOnLoad() {
+  const savedStateStr = localStorage.getItem('active_github_deploy');
+  if (!savedStateStr || !github || !currentUser || !currentRepo) return;
 
   try {
-    const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
-    if (!isPagesEnabled) return;
+    const savedState = JSON.parse(savedStateStr);
+    if (savedState.repo !== currentRepo) return;
 
-    let toastRef = null;
-
-    await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
-      if (!toastRef) {
-        toastRef = showToast(`⚙️ <b>GitHub Pages</b>: ${statusMsg}`, 'info', 0);
-      } else {
-        toastRef.innerHTML = `⚙️ <b>GitHub Pages</b>: ${statusMsg}`;
-      }
-    });
-
-    if (toastRef) {
-      toastRef.className = 'toast success';
-      toastRef.innerHTML = `✨ O processo anterior do GitHub Pages foi concluído com sucesso!`;
-      setTimeout(() => toastRef.remove(), 5000);
+    // Se a sessão for de menos de 10 minutos atrás, reativa o monitoramento
+    if (Date.now() - savedState.timestamp < 600000) {
+      const toastRef = showToast(`🔍 Detectado processo anterior em <b>${savedState.fileName}</b>. Verificando status no GitHub...`, 'info', 0);
+      activeFilesCount = 1;
+      activeDeploySession++;
+      
+      monitorPageDeploymentForFile(savedState.fileName, activeDeploySession, toastRef);
+    } else {
+      clearDeployState();
     }
-  } catch (error) {
-    // Caso não haja deploys ativos no momento da recarga
+  } catch (e) {
+    clearDeployState();
   }
 }
 
 // MONITORAMENTO INDIVIDUAL DE CADA ARQUIVO SALVO
 async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
   if (!github || !currentUser || !currentRepo) return;
+
+  saveDeployState(currentRepo, fileName, 'building');
 
   try {
     const isPagesEnabled = await github.checkPagesEnabled(currentUser.login, currentRepo);
@@ -144,14 +152,15 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
         setTimeout(() => toastRef.remove(), 4000);
       }
       activeFilesCount = Math.max(0, activeFilesCount - 1);
+      clearDeployState();
       return;
     }
 
     if (toastRef) {
-      toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando publicação no GitHub Pages...`;
+      toastRef.innerHTML = `🚀 <b>${fileName}</b> enviado. Verificando fila de publicação do GitHub Pages...`;
     }
 
-    // Acompanha a API do GitHub Pages
+    // Acompanha o Build na API do GitHub
     await github.trackPageDeployment(currentUser.login, currentRepo, (statusMsg) => {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) {
         if (toastRef) {
@@ -163,21 +172,27 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       if (toastRef) toastRef.innerHTML = `🚀 <b>${fileName}</b>: ${statusMsg}`;
     });
 
+    // PÓS-BUILD: AGUARDA PROPAGAÇÃO REAL NO CDN (Especialmente para Horários de Pico)
     if (toastRef) {
-      toastRef.innerHTML = `🔄 <b>${fileName}</b>: Aguardando propagação no servidor do GitHub...`;
+      toastRef.innerHTML = `⏳ <b>${fileName}</b>: Build concluído. Aguardando propagação nos servidores do GitHub (Horário de Pico)...`;
     }
 
-    // Espera propagação do CDN do GitHub para evitar cache antigo
-    for (let i = 0; i < 5; i++) {
-      await new Promise(r => setTimeout(r, 1000));
+    // Loop de verificação de CDN com margem de segurança extra (12 segundos)
+    for (let i = 12; i > 0; i--) {
       if (sessionId !== activeDeploySession || saveQueue.length > 0) break;
+      if (toastRef) {
+        toastRef.innerHTML = `⏳ <b>${fileName}</b>: Sincronizando com os servidores globais (${i}s)...`;
+      }
+      await new Promise(r => setTimeout(r, 1000));
     }
+
+    clearDeployState();
 
     // SE A ATUALIZAÇÃO AUTOMÁTICA ESTIVER DESATIVADA
     if (!isAutoReloadEnabled) {
       if (toastRef) {
         toastRef.className = 'toast success';
-        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado no servidor! Pronto para atualização manual.`;
+        toastRef.innerHTML = `✨ <b>${fileName}</b> publicado no servidor! As alterações já estão disponíveis.`;
         setTimeout(() => toastRef.remove(), 7000);
       }
       activeFilesCount = Math.max(0, activeFilesCount - 1);
@@ -193,8 +208,8 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       await new Promise(r => setTimeout(r, 1000));
     }
 
-    // CONTAGEM REGRESSIVA COM BOTÃO DE CANCELAMENTO
-    let countdown = 5;
+    // CONTAGEM REGRESSIVA PARA REINICIALIZAÇÃO
+    let countdown = 3;
     const isMultipleFiles = activeFilesCount > 1;
 
     const countdownInterval = setInterval(() => {
@@ -206,33 +221,11 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
       if (countdown > 0) {
         if (toastRef) {
           toastRef.className = 'toast success';
-          const titleMsg = isMultipleFiles 
-            ? `✨ Todos os arquivos foram publicados!` 
-            : `✨ <b>${fileName}</b> foi publicado com sucesso!`;
-
-          toastRef.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              <div>${titleMsg}</div>
-              <div style="font-size: 13px;">🔄 Recarregando em <b>${countdown}s</b>...</div>
-              <div>
-                <button id="cancel-reload-btn-${sessionId}" style="margin-top: 4px; padding: 3px 10px; font-size: 11px; background: #dc3545; color: #fff; border: none; border-radius: 4px; cursor: pointer;">❌ Cancelar Atualização</button>
-              </div>
-            </div>
-          `;
-
-          // Adiciona ação ao botão de cancelar
-          setTimeout(() => {
-            const cancelBtn = document.getElementById(`cancel-reload-btn-${sessionId}`);
-            if (cancelBtn) {
-              cancelBtn.onclick = () => {
-                clearInterval(countdownInterval);
-                toastRef.className = 'toast info';
-                toastRef.innerHTML = `🛑 Reinicialização automática cancelada.`;
-                activeFilesCount = 0;
-                setTimeout(() => toastRef.remove(), 4000);
-              };
-            }
-          }, 50);
+          if (isMultipleFiles) {
+            toastRef.innerHTML = `✨ Todos os arquivos foram publicados! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          } else {
+            toastRef.innerHTML = `✨ <b>${fileName}</b> foi publicado com sucesso! <br><small>🔄 Recarregando a página em <b>${countdown}s</b>...</small>`;
+          }
         }
         countdown--;
       } else {
@@ -246,6 +239,7 @@ async function monitorPageDeploymentForFile(fileName, sessionId, toastRef) {
     }, 1000);
 
   } catch (error) {
+    clearDeployState();
     if (toastRef) {
       toastRef.className = 'toast success';
       toastRef.innerHTML = `💾 <b>${fileName}</b> salvo no repositório!`;
@@ -470,6 +464,7 @@ document.addEventListener('click', (e) => {
 logoutBtn.addEventListener('click', () => {
   if (!checkUnsavedChanges()) return;
   localStorage.removeItem('gh_token');
+  clearDeployState();
   window.location.href = window.location.pathname;
 });
 
@@ -549,9 +544,9 @@ async function selectRepo(repoName) {
 
   currentFolderPath = '';
   await loadFiles(currentFolderPath);
-
-  // Checa se já havia algum deploy rodando no GitHub para este repositório
-  checkOngoingDeployments();
+  
+  // Checa se existia algum processo ativo do repositório ao carregar
+  checkOngoingDeployOnLoad();
 }
 
 toggleDeleteModeBtn.addEventListener('click', () => {
